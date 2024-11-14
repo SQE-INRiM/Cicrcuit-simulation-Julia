@@ -168,6 +168,8 @@ for _ in 1:nRandomPoints
 
 end
 
+println(random_points[1])
+
 """
 wp_alpha_vec=[]
 wphalf_alpha_vec=[]
@@ -205,14 +207,52 @@ println(delta_alpha_lin_vec)
 
 """
 
-function cost_func(delta_alpha_wp_vec) #, delta_alpha_lin_vec, threshold)
 
 
-    alpha_wphalf, alpha_wp, alpha_lin, p4_temp = simulate_low_pump_power(params_temp, sim_vars, circuit_temp, circuitdefs_temp)  
+function simulation_for_optmz(params_temp, JJSmallStd, JJBigStd, fixed_params, sim_vars)
     
-    cost=delta_alpha_wp_ve
+    #Adding important parameters
+    params_temp[:N] = nMacrocells*params_temp[:loadingpitch] 
+    params_temp[:CgDensity] = (fixed_params[:CgDielectricK] * 8.854e-12) / (1e12 * params_temp[:CgDielectricThichness] * 1e-9)
+    params_temp[:CgAreaUNLoaded] = 150 + 20 * (params_temp[:smallJunctionArea] / params_temp[:alphaSNAIL])
 
-    return cost
+    circuit_temp, circuitdefs_temp = create_circuit(JJSmallStd, JJBigStd, params_temp, fixed_params)
+    
+    alpha_wphalf, alpha_wp, _, _ = simulate_low_pump_power(params_temp, sim_vars, circuit_temp, circuitdefs_temp) 
+    
+    return alpha_wphalf, alpha_wp
+
+end
+
+
+
+function cost_func(params, JJSmallStd, JJBigStd, fixed_params, sim_vars) #, delta_alpha_lin_vec, threshold)
+
+    alpha_wphalf, alpha_wp = simulation_for_optmz(params, JJSmallStd, JJBigStd, fixed_params, sim_vars)
+
+    return abs(alpha_wphalf - alpha_wp)
+
+end
+
+initial_params = Dict(key => rand(values) for (key, values) in sim_params)
+
+
+function sequential_minimization(params, nRandomPoints)
+
+    for i in 1:nRandomPoints
+
+        # Perform the optimization for the i-th element
+        result = optimize(p -> cost_func(p, JJSmallStd, JJBigStd, fixed_params, sim_vars), params)
+
+        # Update the parameters after each optimization
+        params = result.minimizer
+        
+        # Display the progress and result for each element
+        println("Optimal params for element $i: ", params)
+        println("Minimum cost for element $i: ", result.minimum)
+    end
+    
+    return params
 
 end
 
