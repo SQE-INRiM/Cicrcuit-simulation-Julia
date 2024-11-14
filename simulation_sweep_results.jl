@@ -145,9 +145,14 @@ sim_params = Dict(
 
 nMacrocells_array = [3,20,40]
 nMacrocells=20
-nRandomPoints = 40
 
-random_points=[]
+
+#-----------------------------------------------------------------------------------
+#-----------------------------STARTING SIMULATION-----------------------------------
+
+
+nRandomPoints = 3
+random_points = []
 
 for _ in 1:nRandomPoints
 
@@ -162,31 +167,77 @@ for _ in 1:nRandomPoints
 
 end
 
+wp_alpha_vec=[]
+wphalf_alpha_vec=[]
+wp_lin_vec=[]
+
 for params_temp in random_points
 
     circuit_temp, circuitdefs_temp = create_circuit(JJSmallStd, JJBigStd, params_temp, fixed_params)
 
     start_time = now()  
     
-    p1_temp, p2_temp, p3_temp, p4_temp = simulate_low_pump_power(params_temp, sim_vars, circuit_temp, circuitdefs_temp)
-        
-    p1p_temp, p2p_temp, p5_temp = simulate_at_fixed_flux(sim_vars, circuit_temp, circuitdefs_temp)
+    alpha_wphalf, alpha_wp, alpha_lin, p4_temp = simulate_low_pump_power(params_temp, sim_vars, circuit_temp, circuitdefs_temp)  
+    
 
+
+    """
+    p1p_temp, p2p_temp, p5_temp = simulate_at_fixed_flux(sim_vars, circuit_temp, circuitdefs_temp)
     p_temp = final_report(params_temp, sim_vars, fixed_params, p1_temp, p2_temp, p3_temp, p4_temp, p1p_temp, p2p_temp, p5_temp)
+    """
 
     end_time = now()
 
     display(p4_temp)
 
-    println("Time taken: ", end_time - start_time)
+    println("Time taken: ", (end_time - start_time)/Second(1))
 
 end    
 
 
 
-
-
 """
+
+
+#Valuation of the time as a function of the cells number
+
+nMacrocells_array = [3,20,40,80,100,130,160,200,250]
+loadingpitch = 3
+time_array=[]
+
+params_temp = Dict(key => rand(values) for (key, values) in sim_params)
+params_temp[:CgDensity] = (fixed_params[:CgDielectricK] * 8.854e-12) / (1e12 * params_temp[:CgDielectricThichness] * 1e-9)
+params_temp[:CgAreaUNLoaded] = 150 + 20 * (params_temp[:smallJunctionArea] / params_temp[:alphaSNAIL])
+
+for nMacrocells in nMacrocells_array
+
+    start_time = now() 
+
+    params_temp[:N] = nMacrocells*loadingpitch
+    circuit_temp, circuitdefs_temp = create_circuit(JJSmallStd, JJBigStd, params_temp, fixed_params)
+    p_temp = simulate_and_plot(params_temp, sim_vars, fixed_params, circuit_temp, circuitdefs_temp)
+
+    end_time = now() 
+
+    push!(time_array, (end_time - start_time)/Second(1))
+
+end
+
+println(nMacrocells_array)
+println(time_array)
+
+plt = plot(nMacrocells_array, time_array,
+    title="Time as a function of the number of cells", xlabel="nMacrocells", ylabel="time [s]")
+
+display(plt)
+
+
+
+
+--------------------------------------------------------------------------------------------------
+
+
+
 
 # WARNING: for now choose only ONE parameter to iterate that YOU COMMENT below. In order to iterate it and fix all the others.
 

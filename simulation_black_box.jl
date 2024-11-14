@@ -88,8 +88,9 @@ function simulate_low_pump_power(params, sim_vars, circuit, circuitdefs)
         ylabel=L"k / rad \cdot cells^{-1}",
         title="Dispersion relation",
         #ylim=(0.0, 1.5),
-        legend=false,
+        legend=true,
         colorbar=true,
+        label="",
         framestyle=:box
     )
 
@@ -101,7 +102,17 @@ function simulate_low_pump_power(params, sim_vars, circuit, circuitdefs)
     
     wp=sim_vars[:ws][wpIndex]
     wphalf=sim_vars[:ws][wphalfIndex]
+
+    #linear relation
+    y1=-outvalsS21PhasephidcSweep[10, phidcIndex] / params[:N]
+    y2=-outvalsS21PhasephidcSweep[1, phidcIndex] / params[:N]
+    x1=sim_vars[:ws][10]
+    x2=sim_vars[:ws][1]
+
+    m = (y1-y2)/(x1-x2)
+    q = y2-m_p*x2
     
+    plot!(p4, sim_vars[:ws] / (2 * pi * 1e9), m .* sim_vars[:ws] .+ q, label="linear relation", color=:orange)
     
     #line passing throug wp
     y1=-outvalsS21PhasephidcSweep[wpIndex[1], phidcIndex] / params[:N]
@@ -112,7 +123,7 @@ function simulate_low_pump_power(params, sim_vars, circuit, circuitdefs)
     m_p = (y1-y2)/(x1-x2)
     q_p = y2-m_p*x2
     
-    plot!(p4, sim_vars[:ws] / (2 * pi * 1e9), m_p .* sim_vars[:ws] .+ q_p)
+    plot!(p4, sim_vars[:ws] / (2 * pi * 1e9), m_p .* sim_vars[:ws] .+ q_p, label="wp line", color=:darkblue)
     
 
     #line passing throug wp/2 
@@ -124,15 +135,14 @@ function simulate_low_pump_power(params, sim_vars, circuit, circuitdefs)
     m_phalf=(y1-y2)/(x1-x2)
     q_phalf = y2-m_phalf*x2
     
-    plot!(p4, sim_vars[:ws] / (2 * pi * 1e9), m_phalf .* sim_vars[:ws] .+ q_phalf)
+    plot!(p4, sim_vars[:ws] / (2 * pi * 1e9), m_phalf .* sim_vars[:ws] .+ q_phalf, label="wp/2 line", color=:darkred)
+
+    alpha_wphalf=atan(m_phalf)
+    alpha_wp=atan(m_p)
+    alpha_lin=atan(m)
 
 
-    vline!(p4, wp/(2 * pi * 1e9), label="Vertical Line", color=:blue, linestyle=:dash)
-    vline!(p4, wphalf/(2 * pi * 1e9), label="Vertical Line", color=:blue, linestyle=:dash)
-    """scatter!(p4, wp/(2 * pi * 1e9),-outvalsS21PhasephidcSweep[wpIndex, phidcIndex] / params[:N] , color=:blue)
-    scatter!(p4, wp/(2*(2 * pi * 1e9)), -outvalsS21PhasephidcSweep[wphalfIndex, phidcIndex] / params[:N], color=:blue)
-    """
-    return p1,p2,p3,p4
+    return  alpha_wphalf, alpha_wp, alpha_lin, p4              #p1,p2,p3,p4
 
 end
 
@@ -234,12 +244,12 @@ function final_report(params, sim_vars, fixed_params, p1, p2, p3, p4, p1p, p2p, 
     hline!(p1p, [sim_vars[:wp][1] / (2 * pi * 1e9)], width=2, color=:black)
     hline!(p2p, [sim_vars[:wp][1] / (2 * pi * 1e9)], width=2, color=:black)
     
-    """
-    vline!(p4, [sim_vars[:wp][1] / (2 * pi * 1e9)], width=2, color=:black)
-    vline!(p4, [(1 / 2) * sim_vars[:wp][1] / (2 * pi * 1e9)], width=2, style=:dash, color=:gray)
-    vline!(p4, [(3 / 2) * sim_vars[:wp][1] / (2 * pi * 1e9)], width=2, style=:dash, color=:gray)
-    vline!(p4, [2 * sim_vars[:wp][1] / (2 * pi * 1e9)], width=2, color=:gray)
-    """
+
+    vline!(p4, [sim_vars[:wp][1] / (2 * pi * 1e9)], width=2, color=:black, label="")
+    vline!(p4, [(1 / 2) * sim_vars[:wp][1] / (2 * pi * 1e9)], width=2, style=:dash, color=:gray, label="")
+    vline!(p4, [(3 / 2) * sim_vars[:wp][1] / (2 * pi * 1e9)], width=2, style=:dash, color=:gray, label="")
+    vline!(p4, [2 * sim_vars[:wp][1] / (2 * pi * 1e9)], width=2, color=:gray,label="")
+
 
     vline!(p1p, [sim_vars[:IpGain] / 1e-6], width=2, color=:black)
     vline!(p2p, [sim_vars[:IpGain] / 1e-6], width=2, color=:black)
