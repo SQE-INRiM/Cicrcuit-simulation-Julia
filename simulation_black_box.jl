@@ -94,6 +94,10 @@ function simulate_low_pump_power(params, sim_vars, circuit, circuitdefs)
         framestyle=:box
     )
 
+    vline!(p4, [sim_vars[:wp][1] / (2 * pi * 1e9)], width=2, color=:black, label="")
+    vline!(p4, [(1 / 2) * sim_vars[:wp][1] / (2 * pi * 1e9)], width=2, style=:dash, color=:gray, label="")
+    vline!(p4, [(3 / 2) * sim_vars[:wp][1] / (2 * pi * 1e9)], width=2, style=:dash, color=:gray, label="")
+    vline!(p4, [2 * sim_vars[:wp][1] / (2 * pi * 1e9)], width=2, color=:gray,label="")
 
     wp = 2*pi* round(sim_vars[:fp], digits=-8)                                    #Put the nearest wp value included inside ws. The reason of this line is because for computational reason the wp cannot be a value of ws.
 
@@ -110,7 +114,7 @@ function simulate_low_pump_power(params, sim_vars, circuit, circuitdefs)
     x2=sim_vars[:ws][1]
 
     m = (y1-y2)/(x1-x2)
-    q = y2-m_p*x2
+    q = y2-m*x2
     
     plot!(p4, sim_vars[:ws] / (2 * pi * 1e9), m .* sim_vars[:ws] .+ q, label="linear relation", color=:orange)
     
@@ -137,9 +141,9 @@ function simulate_low_pump_power(params, sim_vars, circuit, circuitdefs)
     
     plot!(p4, sim_vars[:ws] / (2 * pi * 1e9), m_phalf .* sim_vars[:ws] .+ q_phalf, label="wp/2 line", color=:darkred)
 
-    alpha_wphalf=atan(m_phalf)
-    alpha_wp=atan(m_p)
-    alpha_lin=atan(m)
+    alpha_wphalf=atan(m_phalf[1])
+    alpha_wp=atan(m_p[1])
+    alpha_lin=atan(m[1])
 
 
     return  alpha_wphalf, alpha_wp, alpha_lin, p4              #p1,p2,p3,p4

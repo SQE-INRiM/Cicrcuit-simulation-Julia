@@ -9,6 +9,7 @@ using LaTeXStrings
 using ColorTypes
 using Symbolics
 using Dates
+using Optim
 
 include("snail_circuit.jl")
 include("simulation_black_box.jl")
@@ -167,9 +168,10 @@ for _ in 1:nRandomPoints
 
 end
 
+"""
 wp_alpha_vec=[]
 wphalf_alpha_vec=[]
-wp_lin_vec=[]
+lin_alpha_vec=[]
 
 for params_temp in random_points
 
@@ -179,12 +181,14 @@ for params_temp in random_points
     
     alpha_wphalf, alpha_wp, alpha_lin, p4_temp = simulate_low_pump_power(params_temp, sim_vars, circuit_temp, circuitdefs_temp)  
     
+    push!(wphalf_alpha_vec, alpha_wphalf)
+    push!(wp_alpha_vec, alpha_wp)
+    push!(lin_alpha_vec, alpha_lin)
 
 
-    """
     p1p_temp, p2p_temp, p5_temp = simulate_at_fixed_flux(sim_vars, circuit_temp, circuitdefs_temp)
     p_temp = final_report(params_temp, sim_vars, fixed_params, p1_temp, p2_temp, p3_temp, p4_temp, p1p_temp, p2p_temp, p5_temp)
-    """
+
 
     end_time = now()
 
@@ -194,10 +198,29 @@ for params_temp in random_points
 
 end    
 
-
+delta_alpha_wp_vec =  abs.(wp_alpha_vec .- wphalf_alpha_vec)
+println(delta_alpha_wp_vec)
+delta_alpha_lin_vec =  abs.(lin_alpha_vec .- wphalf_alpha_vec)
+println(delta_alpha_lin_vec)
 
 """
 
+function cost_func(delta_alpha_wp_vec) #, delta_alpha_lin_vec, threshold)
+
+
+    alpha_wphalf, alpha_wp, alpha_lin, p4_temp = simulate_low_pump_power(params_temp, sim_vars, circuit_temp, circuitdefs_temp)  
+    
+    cost=delta_alpha_wp_ve
+
+    return cost
+
+end
+
+
+
+
+
+"""
 
 #Valuation of the time as a function of the cells number
 
