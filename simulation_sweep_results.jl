@@ -8,6 +8,7 @@ using Dates
 using LaTeXStrings
 using ColorTypes
 using Symbolics
+using Dates
 
 include("snail_circuit.jl")
 include("simulation_black_box.jl")
@@ -139,9 +140,53 @@ sim_params = Dict(
     :LloadingCell => [1, 2, 3],                           
     :CgloadingCell => [1, 2],                             
     :criticalCurrentDensity => [0.2, 0.5],                
-    :CgDielectricThichness => [10, 20]                    
+    :CgDielectricThichness => [10, 20,40,70]                    
 )
 
+nMacrocells_array = [3,20,40]
+nMacrocells=20
+nRandomPoints = 40
+
+random_points=[]
+
+for _ in 1:nRandomPoints
+
+    params_temp = Dict(key => rand(values) for (key, values) in sim_params)
+    
+    #Adding important parameters
+    params_temp[:N] = nMacrocells*params_temp[:loadingpitch] 
+    params_temp[:CgDensity] = (fixed_params[:CgDielectricK] * 8.854e-12) / (1e12 * params_temp[:CgDielectricThichness] * 1e-9)
+    params_temp[:CgAreaUNLoaded] = 150 + 20 * (params_temp[:smallJunctionArea] / params_temp[:alphaSNAIL])
+
+    push!(random_points, params_temp)
+
+end
+
+for params_temp in random_points
+
+    circuit_temp, circuitdefs_temp = create_circuit(JJSmallStd, JJBigStd, params_temp, fixed_params)
+
+    start_time = now()  
+    
+    p1_temp, p2_temp, p3_temp, p4_temp = simulate_low_pump_power(params_temp, sim_vars, circuit_temp, circuitdefs_temp)
+        
+    p1p_temp, p2p_temp, p5_temp = simulate_at_fixed_flux(sim_vars, circuit_temp, circuitdefs_temp)
+
+    p_temp = final_report(params_temp, sim_vars, fixed_params, p1_temp, p2_temp, p3_temp, p4_temp, p1p_temp, p2p_temp, p5_temp)
+
+    end_time = now()
+
+    display(p4_temp)
+
+    println("Time taken: ", end_time - start_time)
+
+end    
+
+
+
+
+
+"""
 
 # WARNING: for now choose only ONE parameter to iterate that YOU COMMENT below. In order to iterate it and fix all the others.
 
@@ -181,7 +226,6 @@ for (param_name, param_values) in params
     # Loop through the values of the selected variable
     for value in param_values
 
-        println("$(param_name) = $(value)")
 
         params_temp = merge(params, Dict(param_name => value))
         
@@ -205,21 +249,19 @@ for (param_name, param_values) in params
 
         p_temp = final_report(params_temp, sim_vars, fixed_params, p1_temp, p2_temp, p3_temp, p4_temp, p1p_temp, p2p_temp, p5_temp)
 
-        #p_temp = simulate_and_plot(params_temp, sim_vars, circuit_temp, circuitdefs_temp)
+        #p_temp = simulate_and_plot(params_temp, sim_vars, fixed_params, circuit_temp, circuitdefs_temp)
 
     
         # Display the plot
         #display(p_temp)
         display(p4_temp)
 
-        # Save the file with the variable name and its value
-        filename = "SNAIL-TWPA - 3&4WM - $(param_name)_$(value).png"
-        savefig(p_temp, filename)
+
      
         println("-----------------------------------------")
 
     end
 
 end
-
+"""
 

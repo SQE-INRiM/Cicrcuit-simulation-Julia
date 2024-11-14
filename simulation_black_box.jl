@@ -102,14 +102,6 @@ function simulate_low_pump_power(params, sim_vars, circuit, circuitdefs)
     wp=sim_vars[:ws][wpIndex]
     wphalf=sim_vars[:ws][wphalfIndex]
     
-    """
-    println(wp)
-    println(outvalsS21PhasephidcSweep[10, phidcIndex]/ params[:N])
-    println([(outvalsS21PhasephidcSweep[wpIndex, phidcIndex]/ params[:N])[1]])
-    println(outvalsS21PhasephidcSweep[1, phidcIndex]/ params[:N])
-    println(sim_vars[:ws][wphalfIndex][1])
-    println(sim_vars[:ws][1])
-    """
     
     #line passing throug wp
     y1=-outvalsS21PhasephidcSweep[wpIndex[1], phidcIndex] / params[:N]
@@ -312,7 +304,7 @@ end
 
 #-----------------------------GENERAL FUNCTION FOR SIMULATION AND PLOT--------------------------------------
 
-function simulate_and_plot(params_temp, sim_vars, circuit_temp, circuitdefs_temp)
+function simulate_and_plot(params_temp, sim_vars, fixed_params, circuit_temp, circuitdefs_temp)
 
     p1,p2,p3,p4 = simulate_low_pump_power(params_temp, sim_vars, circuit_temp, circuitdefs_temp)
 
