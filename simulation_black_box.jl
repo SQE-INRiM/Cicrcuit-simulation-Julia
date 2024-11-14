@@ -111,65 +111,35 @@ function simulate_low_pump_power(params, sim_vars, circuit, circuitdefs)
     println(sim_vars[:ws][1])
     """
     
-    
-    println("-----------------------------------------------")
+    #line passing throug wp
     y1=-outvalsS21PhasephidcSweep[wpIndex[1], phidcIndex] / params[:N]
-    println(y1)
-    println(wpIndex)
     y2=-outvalsS21PhasephidcSweep[1, phidcIndex] / params[:N]
-    println(y2)
     x1=sim_vars[:ws][wpIndex[1]]
-    println(x1)
     x2=sim_vars[:ws][1]
-    println(x2)
 
-
-    m=(y1-y2)/(x1-x2)
-    println(m)
-    m = (-outvalsS21PhasephidcSweep[10, phidcIndex] / params[:N] - (-outvalsS21PhasephidcSweep[1, phidcIndex] / params[:N])) / (sim_vars[:ws][10] - sim_vars[:ws][1])
-    println(m)
-    q = y2-m*x2
-    println(q)
-    q = (-outvalsS21PhasephidcSweep[1, phidcIndex] / params[:N]) - m * sim_vars[:ws][1]
-    println(q)
-
-    plot!(p4, sim_vars[:ws] / (2 * pi * 1e9), m .* sim_vars[:ws] .+ q)
+    m_p = (y1-y2)/(x1-x2)
+    q_p = y2-m_p*x2
     
-    """
-    println("------------------------------------------")
+    plot!(p4, sim_vars[:ws] / (2 * pi * 1e9), m_p .* sim_vars[:ws] .+ q_p)
+    
 
-
-    yp=-outvalsS21PhasephidcSweep[wpIndex, phidcIndex] / params[:N]
-    println(yp)
+    #line passing throug wp/2 
+    y1=-outvalsS21PhasephidcSweep[wphalfIndex[1], phidcIndex] / params[:N]
     y2=-outvalsS21PhasephidcSweep[1, phidcIndex] / params[:N]
-    println(y2)
-    xp=sim_vars[:ws][wpIndex]
-    println(xp)
+    x1=sim_vars[:ws][wphalfIndex[1]]
     x2=sim_vars[:ws][1]
-    println(x2)
 
-
-    m=(y2-yp)/(x2-xp)
-    println(m)
-    m = ([(outvalsS21PhasephidcSweep[wpIndex, phidcIndex]/ params[:N])[1]] - (-outvalsS21PhasephidcSweep[1, phidcIndex] / params[:N])) / (sim_vars[:ws][10][1] - sim_vars[:ws][1])
-    println(m)
-    q= y2-m*x2
-    println(q)
-    q = (-outvalsS21PhasephidcSweep[1, phidcIndex] / params[:N]) - m * sim_vars[:ws][1]
-    println(q)
-
+    m_phalf=(y1-y2)/(x1-x2)
+    q_phalf = y2-m_phalf*x2
     
-    
-    # Plotting with element-wise operations
-    plot!(p4, sim_vars[:ws] / (2 * pi * 1e9), m .* sim_vars[:ws] .+ q)
+    plot!(p4, sim_vars[:ws] / (2 * pi * 1e9), m_phalf .* sim_vars[:ws] .+ q_phalf)
 
-    """
-    
+
     vline!(p4, wp/(2 * pi * 1e9), label="Vertical Line", color=:blue, linestyle=:dash)
     vline!(p4, wphalf/(2 * pi * 1e9), label="Vertical Line", color=:blue, linestyle=:dash)
-    scatter!(p4, wp/(2 * pi * 1e9),-outvalsS21PhasephidcSweep[wpIndex, phidcIndex] / params[:N] , color=:blue)
+    """scatter!(p4, wp/(2 * pi * 1e9),-outvalsS21PhasephidcSweep[wpIndex, phidcIndex] / params[:N] , color=:blue)
     scatter!(p4, wp/(2*(2 * pi * 1e9)), -outvalsS21PhasephidcSweep[wphalfIndex, phidcIndex] / params[:N], color=:blue)
-
+    """
     return p1,p2,p3,p4
 
 end
