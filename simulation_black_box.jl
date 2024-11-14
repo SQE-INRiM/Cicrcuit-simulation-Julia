@@ -87,13 +87,13 @@ function simulate_low_pump_power(params, sim_vars, circuit, circuitdefs)
         xlabel=L"f / GHz",
         ylabel=L"k / rad \cdot cells^{-1}",
         title="Dispersion relation",
-        ylim=(0.0, 1.5),
+        #ylim=(0.0, 1.5),
         legend=false,
         colorbar=true,
         framestyle=:box
     )
 
-    """
+
     wp = 2*pi* round(sim_vars[:fp], digits=-8)                                    #Put the nearest wp value included inside ws. The reason of this line is because for computational reason the wp cannot be a value of ws.
 
     wpIndex = findall(x -> x == wp, sim_vars[:ws])
@@ -101,30 +101,74 @@ function simulate_low_pump_power(params, sim_vars, circuit, circuitdefs)
     
     wp=sim_vars[:ws][wpIndex]
     wphalf=sim_vars[:ws][wphalfIndex]
+    
+    """
     println(wp)
     println(outvalsS21PhasephidcSweep[10, phidcIndex]/ params[:N])
-    println(outvalsS21PhasephidcSweep[wpIndex, phidcIndex]/ params[:N])
+    println([(outvalsS21PhasephidcSweep[wpIndex, phidcIndex]/ params[:N])[1]])
+    println(outvalsS21PhasephidcSweep[1, phidcIndex]/ params[:N])
+    println(sim_vars[:ws][wphalfIndex][1])
+    println(sim_vars[:ws][1])
+    """
     
-    """
-    m = (-outvalsS21PhasephidcSweep[10, phidcIndex] / params[:N] - (-outvalsS21PhasephidcSweep[1, phidcIndex] / params[:N])) / (sim_vars[:ws][10] - sim_vars[:ws][1])
-    q = (-outvalsS21PhasephidcSweep[1, phidcIndex] / params[:N]) - m * sim_vars[:ws][1]
     
-    """
-    # Assuming m is a scalar and broadcasting is necessary for vector operations
-    m = (-outvalsS21PhasephidcSweep[wphalfIndex, phidcIndex] / params[:N] - (-outvalsS21PhasephidcSweep[1, phidcIndex] / params[:N])) / (sim_vars[:ws][wphalfIndex] - sim_vars[:ws][1])
-    q = (-outvalsS21PhasephidcSweep[1, phidcIndex] / params[:N]) - m * sim_vars[:ws][1]
-    """
+    println("-----------------------------------------------")
+    y1=-outvalsS21PhasephidcSweep[wpIndex[1], phidcIndex] / params[:N]
+    println(y1)
+    println(wpIndex)
+    y2=-outvalsS21PhasephidcSweep[1, phidcIndex] / params[:N]
+    println(y2)
+    x1=sim_vars[:ws][wpIndex[1]]
+    println(x1)
+    x2=sim_vars[:ws][1]
+    println(x2)
 
+
+    m=(y1-y2)/(x1-x2)
+    println(m)
+    m = (-outvalsS21PhasephidcSweep[10, phidcIndex] / params[:N] - (-outvalsS21PhasephidcSweep[1, phidcIndex] / params[:N])) / (sim_vars[:ws][10] - sim_vars[:ws][1])
+    println(m)
+    q = y2-m*x2
+    println(q)
+    q = (-outvalsS21PhasephidcSweep[1, phidcIndex] / params[:N]) - m * sim_vars[:ws][1]
+    println(q)
+
+    plot!(p4, sim_vars[:ws] / (2 * pi * 1e9), m .* sim_vars[:ws] .+ q)
+    
+    """
+    println("------------------------------------------")
+
+
+    yp=-outvalsS21PhasephidcSweep[wpIndex, phidcIndex] / params[:N]
+    println(yp)
+    y2=-outvalsS21PhasephidcSweep[1, phidcIndex] / params[:N]
+    println(y2)
+    xp=sim_vars[:ws][wpIndex]
+    println(xp)
+    x2=sim_vars[:ws][1]
+    println(x2)
+
+
+    m=(y2-yp)/(x2-xp)
+    println(m)
+    m = ([(outvalsS21PhasephidcSweep[wpIndex, phidcIndex]/ params[:N])[1]] - (-outvalsS21PhasephidcSweep[1, phidcIndex] / params[:N])) / (sim_vars[:ws][10][1] - sim_vars[:ws][1])
+    println(m)
+    q= y2-m*x2
+    println(q)
+    q = (-outvalsS21PhasephidcSweep[1, phidcIndex] / params[:N]) - m * sim_vars[:ws][1]
+    println(q)
+
+    
+    
     # Plotting with element-wise operations
     plot!(p4, sim_vars[:ws] / (2 * pi * 1e9), m .* sim_vars[:ws] .+ q)
 
-    
     """
+    
     vline!(p4, wp/(2 * pi * 1e9), label="Vertical Line", color=:blue, linestyle=:dash)
     vline!(p4, wphalf/(2 * pi * 1e9), label="Vertical Line", color=:blue, linestyle=:dash)
-    scatter!(p4, wp/(2 * pi * 1e9), -outvalsS21PhasephidcSweep[wpIndex, phidcIndex] / params[:N], color=:blue)
+    scatter!(p4, wp/(2 * pi * 1e9),-outvalsS21PhasephidcSweep[wpIndex, phidcIndex] / params[:N] , color=:blue)
     scatter!(p4, wp/(2*(2 * pi * 1e9)), -outvalsS21PhasephidcSweep[wphalfIndex, phidcIndex] / params[:N], color=:blue)
-    """
 
     return p1,p2,p3,p4
 
@@ -228,11 +272,12 @@ function final_report(params, sim_vars, fixed_params, p1, p2, p3, p4, p1p, p2p, 
     hline!(p1p, [sim_vars[:wp][1] / (2 * pi * 1e9)], width=2, color=:black)
     hline!(p2p, [sim_vars[:wp][1] / (2 * pi * 1e9)], width=2, color=:black)
     
-
+    """
     vline!(p4, [sim_vars[:wp][1] / (2 * pi * 1e9)], width=2, color=:black)
     vline!(p4, [(1 / 2) * sim_vars[:wp][1] / (2 * pi * 1e9)], width=2, style=:dash, color=:gray)
     vline!(p4, [(3 / 2) * sim_vars[:wp][1] / (2 * pi * 1e9)], width=2, style=:dash, color=:gray)
     vline!(p4, [2 * sim_vars[:wp][1] / (2 * pi * 1e9)], width=2, color=:gray)
+    """
 
     vline!(p1p, [sim_vars[:IpGain] / 1e-6], width=2, color=:black)
     vline!(p2p, [sim_vars[:IpGain] / 1e-6], width=2, color=:black)

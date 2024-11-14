@@ -203,7 +203,6 @@ for (param_name, param_values) in params
         
         p1p_temp, p2p_temp, p5_temp = simulate_at_fixed_flux(sim_vars, circuit_temp, circuitdefs_temp)
 
-        # Use the new variable names in final_report
         p_temp = final_report(params_temp, sim_vars, fixed_params, p1_temp, p2_temp, p3_temp, p4_temp, p1p_temp, p2p_temp, p5_temp)
 
         #p_temp = simulate_and_plot(params_temp, sim_vars, circuit_temp, circuitdefs_temp)
