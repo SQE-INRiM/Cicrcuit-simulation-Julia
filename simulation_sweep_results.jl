@@ -9,7 +9,7 @@ using LaTeXStrings
 using ColorTypes
 using Symbolics
 using Dates
-using Optim
+using BayesianOptimization, GaussianProcesses, Distributions
 
 include("snail_circuit.jl")
 include("simulation_black_box.jl")
@@ -135,7 +135,8 @@ JJBigStd = 0.05                 #Tra 0.05 e 0.2             # =0 -> perfect fab 
 
 # Define the parameter arrays directly in the dictionary
 sim_params = Dict(
-    :loadingpitch => [2, 3, 4],                          
+    :loadingpitch => [2, 3, 4],
+    :nMacrocells => [20],                        
     :smallJunctionArea => collect(2:0.5:5),                        
     :alphaSNAIL => collect(0.1:0.05:0.25),                         
     :LloadingCell => [1, 2, 3],                           
@@ -144,31 +145,115 @@ sim_params = Dict(
     :CgDielectricThichness => [10, 20,40,70]                    
 )
 
-nMacrocells_array = [3,20,40]
-nMacrocells=20
+
 
 
 #-----------------------------------------------------------------------------------
 #-----------------------------STARTING SIMULATION-----------------------------------
+#-----------------------------------------------------------------------------------
 
 
+#Function to generate a random point
+function add_parameters(params_temp)
+    #Adding important parameters
+    params_temp[:N] = params_temp[:nMacrocells]*params_temp[:loadingpitch] 
+    params_temp[:CgDensity] = (fixed_params[:CgDielectricK] * 8.854e-12) / (1e12 * params_temp[:CgDielectricThichness] * 1e-9)
+    params_temp[:CgAreaUNLoaded] = 150 + 20 * (params_temp[:smallJunctionArea] / params_temp[:alphaSNAIL])
+
+    return params_temp
+end
+"""
+function generate_random_point()
+
+    params_temp = Dict(key => rand(values) for (key, values) in sim_params)
+    params_temp = add_parameters(params_temp)
+    
+    return params_temp
+
+end
+"""
+
+
+# Define the objective function
+function objective_function(params_temp)
+
+    params_temp = add_parameters(params_temp)
+
+    circuit_temp, circuitdefs_temp = create_circuit(JJSmallStd, JJBigStd, params_temp, fixed_params)
+
+    alpha_wphalf, alpha_wp, _, _ = simulate_low_pump_power(params_temp, sim_vars, circuit_temp, circuitdefs_temp) 
+
+    return  abs(alpha_wphalf - alpha_wp)
+end
+
+
+
+
+# Define the GP model for Bayesian Optimization
+model = ElasticGPE(8,                            # 8 input dimensions (number of parameters)
+                   mean = MeanConst(0.),         
+                   kernel = SEArd([0., 0.], 5.),
+                   logNoise = 0.,
+                   capacity = 3000)              # Initial capacity of the GP
+set_priors!(model.mean, [Normal(1, 2)])
+
+# Define the optimizer for the GP model
+modeloptimizer = MAPGPOptimizer(every = 50, 
+                                noisebounds = [-4, 3],       # Bounds for logNoise
+                                kernbounds = [[-1, -1, 0], [4, 4, 10]],  # Bounds for kernel params
+                                maxeval = 40)
+
+# Set the Bayesian Optimization parameters
+opt = BOpt(objective_function,               # Objective function to minimize
+           model,                             # Gaussian Process model
+           UpperConfidenceBound(),           # Acquisition function
+           modeloptimizer,                   # Model optimizer
+           [-5., -5.], [5., 5.],             # Lower and upper bounds
+           repetitions = 5,                  # Number of function evaluations per point
+           maxiterations = 100,              # Number of function evaluations
+           sense = Min,                      # Minimize the objective function
+           acquisitionoptions = (method = :LD_LBFGS, 
+                                  restarts = 5, 
+                                  maxtime = 0.1, 
+                                  maxeval = 1000), 
+           verbosity = Progress)
+
+# Run Bayesian Optimization
+result = boptimize!(opt)
+println("Best Parameters Found: ", result.best_parameters)
+println("Best Objective Value: ", result.best_value)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+"""
+#create an array of random points
 nRandomPoints = 3
 random_points = []
 
 for _ in 1:nRandomPoints
 
-    params_temp = Dict(key => rand(values) for (key, values) in sim_params)
-    
-    #Adding important parameters
-    params_temp[:N] = nMacrocells*params_temp[:loadingpitch] 
-    params_temp[:CgDensity] = (fixed_params[:CgDielectricK] * 8.854e-12) / (1e12 * params_temp[:CgDielectricThichness] * 1e-9)
-    params_temp[:CgAreaUNLoaded] = 150 + 20 * (params_temp[:smallJunctionArea] / params_temp[:alphaSNAIL])
+    params_temp=generate_random_point()
 
     push!(random_points, params_temp)
 
 end
 
 println(random_points[1])
+"""
+
 
 """
 wp_alpha_vec=[]
@@ -205,7 +290,7 @@ println(delta_alpha_wp_vec)
 delta_alpha_lin_vec =  abs.(lin_alpha_vec .- wphalf_alpha_vec)
 println(delta_alpha_lin_vec)
 
-"""
+
 
 
 
@@ -234,8 +319,8 @@ function cost_func(params, JJSmallStd, JJBigStd, fixed_params, sim_vars) #, delt
 
 end
 
-initial_params = Dict(key => rand(values) for (key, values) in sim_params)
 
+initial_params = generate_random_point()
 
 function sequential_minimization(params, nRandomPoints)
 
@@ -248,8 +333,8 @@ function sequential_minimization(params, nRandomPoints)
         params = result.minimizer
         
         # Display the progress and result for each element
-        println("Optimal params for element $i: ", params)
-        println("Minimum cost for element $i: ", result.minimum)
+        println("Optimal params for element dollaro i: ", params)
+        println("Minimum cost for element dollaro i: ", result.minimum)
     end
     
     return params
@@ -260,7 +345,12 @@ end
 
 
 
-"""
+
+
+
+
+
+
 
 #Valuation of the time as a function of the cells number
 
