@@ -30,8 +30,14 @@ function simulate_low_pump_power(params, sim_vars, circuit, circuitdefs)
         outvalsS21PhasephidcSweep[:, k] = unwrap(angle.(sol.linearized.S((0,), 2, (0,), 1, :)))
     end
 
-    
+    return outvalsS21phidcSweep, outvalsS12phidcSweep, outvalsS11phidcSweep, outvalsS22phidcSweep, outvalsS21PhasephidcSweep
 
+end 
+
+
+function plot_low_pump_power(params, sim_vars, circuit, circuitdefs)
+
+    outvalsS21phidcSweep, outvalsS12phidcSweep, outvalsS11phidcSweep, outvalsS22phidcSweep, outvalsS21PhasephidcSweep = simulate_low_pump_power(params, sim_vars, circuit, circuitdefs)
 
     # Generate plots-----------------------------------------------------------------------
 
@@ -146,12 +152,59 @@ function simulate_low_pump_power(params, sim_vars, circuit, circuitdefs)
     alpha_lin=atan(m[1])
 
 
-    return  alpha_wphalf, alpha_wp, alpha_lin, p4              #p1,p2,p3,p4
+    return  p1, p2, p3, p4          
 
 end
 
 
+function calculation_low_pump_power(params, sim_vars, circuit, circuitdefs)
 
+    outvalsS21phidcSweep, outvalsS12phidcSweep, outvalsS11phidcSweep, outvalsS22phidcSweep, outvalsS21PhasephidcSweep = simulate_low_pump_power(params, sim_vars, circuit, circuitdefs)
+
+    wp = 2*pi* round(sim_vars[:fp], digits=-8)                                    #Put the nearest wp value included inside ws. The reason of this line is because for computational reason the wp cannot be a value of ws.
+
+    wpIndex = findall(x -> x == wp, sim_vars[:ws])
+    wphalfIndex = findall(x -> x == wp/2, sim_vars[:ws])
+    
+    wp=sim_vars[:ws][wpIndex]
+    wphalf=sim_vars[:ws][wphalfIndex]
+
+    #linear relation
+    y1=-outvalsS21PhasephidcSweep[10, phidcIndex] / params[:N]
+    y2=-outvalsS21PhasephidcSweep[1, phidcIndex] / params[:N]
+    x1=sim_vars[:ws][10]
+    x2=sim_vars[:ws][1]
+
+    m = (y1-y2)/(x1-x2)
+    q = y2-m*x2
+    
+    
+    #line passing throug wp
+    y1=-outvalsS21PhasephidcSweep[wpIndex[1], phidcIndex] / params[:N]
+    y2=-outvalsS21PhasephidcSweep[1, phidcIndex] / params[:N]
+    x1=sim_vars[:ws][wpIndex[1]]
+    x2=sim_vars[:ws][1]
+
+    m_p = (y1-y2)/(x1-x2)
+    q_p = y2-m_p*x2
+    
+
+    #line passing throug wp/2 
+    y1=-outvalsS21PhasephidcSweep[wphalfIndex[1], phidcIndex] / params[:N]
+    y2=-outvalsS21PhasephidcSweep[1, phidcIndex] / params[:N]
+    x1=sim_vars[:ws][wphalfIndex[1]]
+    x2=sim_vars[:ws][1]
+
+    m_phalf=(y1-y2)/(x1-x2)
+    q_phalf = y2-m_phalf*x2
+
+    alpha_wphalf=atan(m_phalf[1])
+    alpha_wp=atan(m_p[1])
+    alpha_lin=atan(m[1])
+
+    return alpha_wphalf, alpha_wp, alpha_lin
+
+end
 
 #------------------------------------------SIMULATION AT FIXED FLUX---------------------------------------------------
 
