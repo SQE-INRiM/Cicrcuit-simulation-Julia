@@ -9,7 +9,9 @@ using LaTeXStrings
 using ColorTypes
 using Symbolics
 using Dates
-using BayesianOptimization, GaussianProcesses, Distributions
+#using GaussianProcesses
+using Distributions
+using Surrogates
 
 include("snail_circuit.jl")
 include("simulation_black_box.jl")
@@ -142,7 +144,7 @@ sim_params = Dict(
     :LloadingCell => [1, 2, 3],                           
     :CgloadingCell => [1, 2],                             
     :criticalCurrentDensity => [0.2, 0.5],                
-    :CgDielectricThichness => [10, 20,40,70]                    
+    :CgDielectricThichness => [10, 20, 40, 70]                    
 )
 
 
@@ -152,9 +154,16 @@ sim_params = Dict(
 #-----------------------------STARTING SIMULATION-----------------------------------
 #-----------------------------------------------------------------------------------
 
+function vector_to_param(vec, keys)
 
-#Function to generate a random point
+    keys_array = collect(keys)  # Convert KeySet to an array
+    Dict(keys_array[i] => vec[i] for i in 1:length(keys_array))
+
+end
+
+
 function add_parameters(params_temp)
+
     #Adding important parameters
     params_temp[:N] = params_temp[:nMacrocells]*params_temp[:loadingpitch] 
     params_temp[:CgDensity] = (fixed_params[:CgDielectricK] * 8.854e-12) / (1e12 * params_temp[:CgDielectricThichness] * 1e-9)
@@ -162,71 +171,81 @@ function add_parameters(params_temp)
 
     return params_temp
 end
-"""
-function generate_random_point()
 
-    params_temp = Dict(key => rand(values) for (key, values) in sim_params)
-    params_temp = add_parameters(params_temp)
-    
-    return params_temp
 
-end
-"""
+
 
 
 # Define the objective function
-function objective_function(params_temp)
+function objective(vec) #vector passing
+    
+    # to add: funzione che da array passa a dictionary
+    println("Vector:", vec)
+
+    params_temp = vector_to_param(vec, keys(sim_params))
+    println("Dictionary:", params_temp)
 
     params_temp = add_parameters(params_temp)
+    println("Dictionary update:", params_temp)
 
     circuit_temp, circuitdefs_temp = create_circuit(JJSmallStd, JJBigStd, params_temp, fixed_params)
+    println("circuit created")
+    
+    alpha_wphalf, alpha_wp, _  = calculation_low_pump_power(params_temp, sim_vars, circuit_temp, circuitdefs_temp) 
+    println("Metric calculated")
 
-    alpha_wphalf, alpha_wp, _, _ = simulate_low_pump_power(params_temp, sim_vars, circuit_temp, circuitdefs_temp) 
+    return abs(alpha_wphalf - alpha_wp)
 
-    return  abs(alpha_wphalf - alpha_wp)
 end
 
 
 
+# Function to generate a single initial point as a vector of vectors
+function generate_initial_point(params)
+    return [rand(v) for v in values(params)]  # Correctly sampling from the values of the dictionary
+end
 
-# Define the GP model for Bayesian Optimization
-model = ElasticGPE(8,                            # 8 input dimensions (number of parameters)
-                   mean = MeanConst(0.),         
-                   kernel = SEArd([0., 0.], 5.),
-                   logNoise = 0.,
-                   capacity = 3000)              # Initial capacity of the GP
-set_priors!(model.mean, [Normal(1, 2)])
+# Function to generate n initial points
+function generate_n_initial_points(n, params)
+    return [generate_initial_point(params) for _ in 1:n]  # Generate n points
+end
 
-# Define the optimizer for the GP model
-modeloptimizer = MAPGPOptimizer(every = 50, 
-                                noisebounds = [-4, 3],       # Bounds for logNoise
-                                kernbounds = [[-1, -1, 0], [4, 4, 10]],  # Bounds for kernel params
-                                maxeval = 40)
 
-# Set the Bayesian Optimization parameters
-opt = BOpt(objective_function,               # Objective function to minimize
-           model,                             # Gaussian Process model
-           UpperConfidenceBound(),           # Acquisition function
-           modeloptimizer,                   # Model optimizer
-           [-5., -5.], [5., 5.],             # Lower and upper bounds
-           repetitions = 5,                  # Number of function evaluations per point
-           maxiterations = 100,              # Number of function evaluations
-           sense = Min,                      # Minimize the objective function
-           acquisitionoptions = (method = :LD_LBFGS, 
-                                  restarts = 5, 
-                                  maxtime = 0.1, 
-                                  maxeval = 1000), 
-           verbosity = Progress)
+bounds = [extrema(v) for v in values(sim_params)]
 
-# Run Bayesian Optimization
-result = boptimize!(opt)
-println("Best Parameters Found: ", result.best_parameters)
-println("Best Objective Value: ", result.best_value)
+n_initial_points = 4
+initial_points = generate_n_initial_points(n_initial_points, sim_params)
+println("initial_points: ", initial_points)
+
+for p in initial_points
+    println(p)
+end 
 
 
 
+initial_values = [objective(p) for p in initial_points]
+println("initial_values: ", initial_values)
 
+kernel = SquaredExponential()
 
+# Perform Gaussian Process optimization
+result = Surrogates.optimize(
+    objective, 
+    bounds, 
+    Surrogates.GaussianProcess(kernel=kernel, noise_var=1.0), 
+    maxiters = 100,
+    initial_points = initial_points,
+    initial_values = initial_values
+)
+
+keys_list = collect(keys(sim_params))  # Extract parameter names
+optimal_vec = result[1]                # Optimized vector
+optimal_metric = result[2]             # Optimal metric value
+
+optimal_params = vector_to_param(optimal_vec, keys_list)
+
+println("Optimal Parameters: $optimal_params")
+println("Optimal Metric: $optimal_metric")
 
 
 
@@ -239,6 +258,14 @@ println("Best Objective Value: ", result.best_value)
 
 
 """
+function generate_random_point()
+    
+    return Dict(key => rand(values) for (key, values) in sim_params)
+
+end
+
+
+
 #create an array of random points
 nRandomPoints = 3
 random_points = []
@@ -447,7 +474,7 @@ for (param_name, param_values) in params
         # Run the simulation and generate the plot
 
         # Unpack results with renamed variables
-        p1_temp, p2_temp, p3_temp, p4_temp = simulate_low_pump_power(params_temp, sim_vars, circuit_temp, circuitdefs_temp)
+        p1_temp, p2_temp, p3_temp, p4_temp = plot_low_pump_power(params_temp, sim_vars, circuit_temp, circuitdefs_temp)
         
         p1p_temp, p2p_temp, p5_temp = simulate_at_fixed_flux(sim_vars, circuit_temp, circuitdefs_temp)
 
@@ -467,5 +494,5 @@ for (param_name, param_values) in params
     end
 
 end
-"""
 
+"""

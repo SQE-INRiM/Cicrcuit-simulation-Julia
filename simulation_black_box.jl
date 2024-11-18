@@ -163,6 +163,7 @@ function calculation_low_pump_power(params, sim_vars, circuit, circuitdefs)
 
     wp = 2*pi* round(sim_vars[:fp], digits=-8)                                    #Put the nearest wp value included inside ws. The reason of this line is because for computational reason the wp cannot be a value of ws.
 
+    phidcIndex = findall(x -> x == sim_vars[:phidc], sim_vars[:phidcSweep])
     wpIndex = findall(x -> x == wp, sim_vars[:ws])
     wphalfIndex = findall(x -> x == wp/2, sim_vars[:ws])
     
