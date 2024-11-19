@@ -11,7 +11,10 @@ using Symbolics
 using Dates
 #using GaussianProcesses
 using Distributions
+
 using Surrogates
+using LinearAlgebra
+using QuasiMonteCarlo
 
 include("snail_circuit.jl")
 include("simulation_black_box.jl")
@@ -136,8 +139,8 @@ JJSmallStd = 0.05               #Tra 0.05 e 0.2             # =0 -> perfect fab 
 JJBigStd = 0.05                 #Tra 0.05 e 0.2             # =0 -> perfect fab , 0.1 -> 10% spread
 
 # Define the parameter arrays directly in the dictionary
-sim_params = Dict(
-    :loadingpitch => [2, 3, 4],
+sim_params_space = Dict(
+    :loadingpitch => [2],
     :nMacrocells => [20],                        
     :smallJunctionArea => collect(2:0.5:5),                        
     :alphaSNAIL => collect(0.1:0.05:0.25),                         
@@ -174,19 +177,17 @@ end
 
 
 
-
-
-# Define the objective function
-function objective(vec) #vector passing
+# Define the cost function
+function cost(vec) #vector passing
     
     # to add: funzione che da array passa a dictionary
-    println("Vector:", vec)
+    println("Vector: ", vec)
 
-    params_temp = vector_to_param(vec, keys(sim_params))
-    println("Dictionary:", params_temp)
+    params_temp = vector_to_param(vec, keys(sim_params_space))
+    println("Dictionary: ", params_temp)
 
     params_temp = add_parameters(params_temp)
-    println("Dictionary update:", params_temp)
+    println("Dictionary update: ", params_temp)
 
     circuit_temp, circuitdefs_temp = create_circuit(JJSmallStd, JJBigStd, params_temp, fixed_params)
     println("Circuit created")
@@ -194,7 +195,10 @@ function objective(vec) #vector passing
     alpha_wphalf, alpha_wp, _  = calculation_low_pump_power(params_temp, sim_vars, circuit_temp, circuitdefs_temp) 
     println("Metric calculated")
 
-    return abs(alpha_wphalf - alpha_wp)
+    val=abs(alpha_wphalf - alpha_wp)
+    println("Value: ", val)
+
+    return val
 
 end
 
@@ -205,37 +209,55 @@ function generate_initial_point(params)
     return [rand(v) for v in values(params)]  # Correctly sampling from the values of the dictionary
 end
 
-# Function to generate n initial points
+# Function to generate n initial points as a tuple with all float values
 function generate_n_initial_points(n, params)
-    return [generate_initial_point(params) for _ in 1:n]  # Generate n points
+    # Generate `n` initial points as tuples with Float64 elements
+    points = [Tuple(Float64.(generate_initial_point(params))) for _ in 1:n]
+    return points
 end
 
+#Return upper and lower boundaries
+bounds = [extrema(v) for v in values(sim_params_space)]
+println("Bounds: ", bounds)
 
-bounds = [extrema(v) for v in values(sim_params)]
+lb = [b[1] for b in bounds]
+ub = [b[2] for b in bounds]
+println("Lower bounds:", lb)
+println("Upper bounds:", ub)
+
+
 
 n_initial_points = 4
-initial_points = generate_n_initial_points(n_initial_points, sim_params)
-println("initial_points: ", initial_points)
+initial_points = generate_n_initial_points(n_initial_points, sim_params_space)
+println("Initial_points: ", initial_points)
 
 for p in initial_points
-    println(p)
+    println("Single point: ", p)
 end 
 
-initial_values = [objective(p) for p in initial_points]
-println("initial_values: ", initial_values)
+initial_values = [cost(p) for p in initial_points]
+println("Initial_values: ", initial_values)
 
+
+my_k_SRBFN = Kriging(initial_points, initial_values, lb, ub)
+println("my_k_SRBFN: ", my_k_SRBFN)
+
+println("-----------------------------------------------")
+println("STARTING GAUSSIAN PROCESS BAYESIAN OPTIMIZATION")
+println("-----------------------------------------------")
 
 # Perform Gaussian Process optimization
-result = Surrogates.optimize(
-    objective, 
-    bounds, 
-    Surrogates.GaussianProcess(kernel=kernel, noise_var=1.0), 
-    maxiters = 100,
-    initial_points = initial_points,
-    initial_values = initial_values
+result = surrogate_optimize(
+    cost,
+    SRBF(),
+    lb,
+    ub,
+    my_k_SRBFN,
+    RandomSample(),
+    maxiters = 30
 )
 
-keys_list = collect(keys(sim_params))  # Extract parameter names
+keys_list = collect(keys(sim_params_space))  # Extract parameter names
 optimal_vec = result[1]                # Optimized vector
 optimal_metric = result[2]             # Optimal metric value
 

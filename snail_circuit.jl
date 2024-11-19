@@ -1,6 +1,6 @@
 #-------------------------------------CREATION OF SNAIL CIRCUIT-------------------------------------------
 
-function create_circuit(JJSmallStd, JJBigStd, params_temp, fixed_params, verbose = false)
+function create_circuit(JJSmallStd, JJBigStd, params_temp, fixed_params, verbose::Bool=false)
     
     #Circuit definitions----------------------------------------------------
 
@@ -66,13 +66,13 @@ function create_circuit(JJSmallStd, JJBigStd, params_temp, fixed_params, verbose
 
     if verbose
         println("1: UNLoaded cell")
-        println("AC Node 2 created")
-        println("AC Node 3 created")
+        #println("AC Node 2 created")
+        #println("AC Node 3 created")
     end
 
+    N=round(Int, params_temp[:N])
+    loadingpitch=round(Int, params_temp[:loadingpitch])
     nodePerCell=fixed_params[:nodePerCell]
-    N=params_temp[:N]
-    loadingpitch=params_temp[:loadingpitch]
 
     j=nodePerCell+1
 
@@ -125,8 +125,8 @@ function create_circuit(JJSmallStd, JJBigStd, params_temp, fixed_params, verbose
         end
 
         if verbose
-            println("AC Node j+1=$(j+1) created")
-            println("AC Node j+2=$(j+2) created")
+            #println("AC Node j+1=$(j+1) created")
+            #println("AC Node j+2=$(j+2) created")
         end
         
         # increment the index
@@ -169,8 +169,8 @@ function create_circuit(JJSmallStd, JJBigStd, params_temp, fixed_params, verbose
     
     if verbose
         println("L$(4)_$(5) mutually connected to L$(dcOffs+1)_$(dcOffs+2)")
-        println("DC Node dcOffs+1+1=$(dcOffs+1+1) created")
-        println("K$(1)_$(1) mutual coupling created")
+        #println("DC Node dcOffs+1+1=$(dcOffs+1+1) created")
+        #println("K$(1)_$(1) mutual coupling created")
     end
     
     for i = 2:N
@@ -181,10 +181,10 @@ function create_circuit(JJSmallStd, JJBigStd, params_temp, fixed_params, verbose
         push!(circuit,("K$(i)_$(i)","L$(i*nodePerCell)_$(i*nodePerCell+1)","L$(dcOffs+i)_$(dcOffs+i+1)",M)) #mutual inductance between loop inductance and DC line (equal for each cell)
         
         if verbose
-            println("$(2*(i % 2-0.5)): mutual inductance sign")
+            #println("$(2*(i % 2-0.5)): mutual inductance sign")
             println("L$(i*nodePerCell)_$(i*nodePerCell+1) mutually connected to L$(dcOffs+i)_$(dcOffs+i+1)")
-            println("DC Node dcOffs+i+1=$(dcOffs+i+1) created")
-            println("K$(i)_$(i) mutual coupling created")
+            #println("DC Node dcOffs+i+1=$(dcOffs+i+1) created")
+            #println("K$(i)_$(i) mutual coupling created")
         end
     
     end
@@ -197,7 +197,7 @@ function create_circuit(JJSmallStd, JJBigStd, params_temp, fixed_params, verbose
 
     if verbose
         println("Port 4 created")
-        println("$(dcOffs+1+N)")
+        #println("$(dcOffs+1+N)")
     end
 
     #END DC line--------------------------------------------------------------------------------------
