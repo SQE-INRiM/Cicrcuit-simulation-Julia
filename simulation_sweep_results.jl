@@ -189,7 +189,7 @@ function objective(vec) #vector passing
     println("Dictionary update:", params_temp)
 
     circuit_temp, circuitdefs_temp = create_circuit(JJSmallStd, JJBigStd, params_temp, fixed_params)
-    println("circuit created")
+    println("Circuit created")
     
     alpha_wphalf, alpha_wp, _  = calculation_low_pump_power(params_temp, sim_vars, circuit_temp, circuitdefs_temp) 
     println("Metric calculated")
@@ -221,12 +221,9 @@ for p in initial_points
     println(p)
 end 
 
-
-
 initial_values = [objective(p) for p in initial_points]
 println("initial_values: ", initial_values)
 
-kernel = SquaredExponential()
 
 # Perform Gaussian Process optimization
 result = Surrogates.optimize(

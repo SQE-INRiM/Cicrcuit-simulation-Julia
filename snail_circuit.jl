@@ -78,10 +78,10 @@ function create_circuit(JJSmallStd, JJBigStd, params_temp, fixed_params, verbose
 
     for i = 2:N
         
-        local rngSmall = MersenneTwister(i+1);
-        local randomSeedSmall1 = 1+JJSmallStd*randn(rngSmall, Float64)
-        local rngBig1 = MersenneTwister((i+1)*j+1);
-        local randomSeedBig1 = 1+JJBigStd*randn(rngBig1, Float64)
+        rngSmall = MersenneTwister(i+1);
+        randomSeedSmall1 = 1+JJSmallStd*randn(rngSmall, Float64)
+        rngBig1 = MersenneTwister((i+1)*j+1);
+        randomSeedBig1 = 1+JJBigStd*randn(rngBig1, Float64)
 
 
         if mod(i,loadingpitch)+1 == loadingpitch÷2            
