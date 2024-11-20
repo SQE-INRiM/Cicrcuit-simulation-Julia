@@ -374,7 +374,7 @@ end
 
 function simulate_and_plot(params_temp, sim_vars, fixed_params, circuit_temp, circuitdefs_temp)
 
-    p1,p2,p3,p4 = simulate_low_pump_power(params_temp, sim_vars, circuit_temp, circuitdefs_temp)
+    p1,p2,p3,p4 = plot_low_pump_power(params_temp, sim_vars, circuit_temp, circuitdefs_temp)
 
     p1p,p2p,p5 = simulate_at_fixed_flux(sim_vars, circuit_temp, circuitdefs_temp)
 

@@ -9,7 +9,6 @@ using LaTeXStrings
 using ColorTypes
 using Symbolics
 using Dates
-#using GaussianProcesses
 using Distributions
 
 using Surrogates
@@ -18,6 +17,7 @@ using QuasiMonteCarlo
 
 include("snail_circuit.jl")
 include("simulation_black_box.jl")
+include("utils.jl")
 
 
 
@@ -157,34 +157,14 @@ sim_params_space = Dict(
 #-----------------------------STARTING SIMULATION-----------------------------------
 #-----------------------------------------------------------------------------------
 
-function vector_to_param(vec, keys)
-
-    keys_array = collect(keys)  # Convert KeySet to an array
-    Dict(keys_array[i] => vec[i] for i in 1:length(keys_array))
-
-end
-
-
-function add_parameters(params_temp)
-
-    #Adding important parameters
-    params_temp[:N] = params_temp[:nMacrocells]*params_temp[:loadingpitch] 
-    params_temp[:CgDensity] = (fixed_params[:CgDielectricK] * 8.854e-12) / (1e12 * params_temp[:CgDielectricThichness] * 1e-9)
-    params_temp[:CgAreaUNLoaded] = 150 + 20 * (params_temp[:smallJunctionArea] / params_temp[:alphaSNAIL])
-
-    return params_temp
-end
-
-
 
 # Define the cost function
 function cost(vec) #vector passing
     
-    # to add: funzione che da array passa a dictionary
-    println("Vector: ", vec)
-
+    #println("Vector: ", vec)
+    println("-----------------------------------------------------")
     params_temp = vector_to_param(vec, keys(sim_params_space))
-    println("Dictionary: ", params_temp)
+    #println("Dictionary: ", params_temp)
 
     params_temp = add_parameters(params_temp)
     println("Dictionary update: ", params_temp)
@@ -192,30 +172,25 @@ function cost(vec) #vector passing
     circuit_temp, circuitdefs_temp = create_circuit(JJSmallStd, JJBigStd, params_temp, fixed_params)
     println("Circuit created")
     
-    alpha_wphalf, alpha_wp, _  = calculation_low_pump_power(params_temp, sim_vars, circuit_temp, circuitdefs_temp) 
+    alpha_wphalf, alpha_wp, alpha_lin  = calculation_low_pump_power(params_temp, sim_vars, circuit_temp, circuitdefs_temp) 
     println("Metric calculated")
 
-    val=abs(alpha_wphalf - alpha_wp)
-    println("Value: ", val)
+    delta_alpha_wp=abs(alpha_wp - alpha_lin)
+    delta_alpha_wphalf=abs(alpha_wphalf - alpha_lin)
 
-    return val
+    metric=abs(delta_alpha_wp-delta_alpha_wphalf) + 1/((abs(delta_alpha_wp*delta_alpha_wphalf))^(1/2))
+    
+    println("Value: ", metric)
+    println("-----------------------------------------------------")
+
+    return metric
 
 end
 
 
 
-# Function to generate a single initial point as a vector of vectors
-function generate_initial_point(params)
-    return [rand(v) for v in values(params)]  # Correctly sampling from the values of the dictionary
-end
 
-# Function to generate n initial points as a tuple with all float values
-function generate_n_initial_points(n, params)
-    # Generate `n` initial points as tuples with Float64 elements
-    points = [Tuple(Float64.(generate_initial_point(params))) for _ in 1:n]
-    return points
-end
-
+println("START")
 #Return upper and lower boundaries
 bounds = [extrema(v) for v in values(sim_params_space)]
 println("Bounds: ", bounds)
@@ -229,22 +204,27 @@ println("Upper bounds:", ub)
 
 n_initial_points = 4
 initial_points = generate_n_initial_points(n_initial_points, sim_params_space)
-println("Initial_points: ", initial_points)
+println("Initial points: ", initial_points)
 
 for p in initial_points
     println("Single point: ", p)
 end 
 
 initial_values = [cost(p) for p in initial_points]
-println("Initial_values: ", initial_values)
+println("Initial values: ", initial_values)
 
 
 my_k_SRBFN = Kriging(initial_points, initial_values, lb, ub)
-println("my_k_SRBFN: ", my_k_SRBFN)
+#println("my_k_SRBFN: ", my_k_SRBFN)
 
-println("-----------------------------------------------")
-println("STARTING GAUSSIAN PROCESS BAYESIAN OPTIMIZATION")
-println("-----------------------------------------------")
+
+
+
+
+println("-----------------------------------------------------")
+println("-----------------------------------------------------")
+println("---STARTING GAUSSIAN PROCESS BAYESIAN OPTIMIZATION---")
+println("-----------------------------------------------------")
 
 # Perform Gaussian Process optimization
 result = surrogate_optimize(
@@ -254,8 +234,28 @@ result = surrogate_optimize(
     ub,
     my_k_SRBFN,
     RandomSample(),
-    maxiters = 30
+    maxiters = 5,           # Number of interactions. Incresing maxiters: Leads to a longer optimization process with potentially better solutions but at the cost of more time.
+    num_new_samples = 3     # Number of point generated for every single interaction. Incresing num_new_samples: Allows each iteration to consider a broader range of candidate points, 
+                            # improving the chance of finding a good solution early but also increasing the computational cost per iteration.
 )
+
+
+"""
+Balancing these maxiters and num_new_samples is essential for efficient optimization. 
+For example, a small maxiters and a large num_new_samples may work well for problems where sampling is expensive but model updates are less so.
+
+If the problem has many variables or the surrogate model is very non-linear, you may want:
+Larger num_new_samples: To explore the space better per iteration.
+Smaller maxiters: To limit the total number of model updates.
+
+If the problem is relatively simple or smooth:
+Smaller num_new_samples: To reduce computational cost per iteration.
+Larger maxiters: To allow for more refinement.
+"""
+
+
+
+#println("Results: ", result)
 
 keys_list = collect(keys(sim_params_space))  # Extract parameter names
 optimal_vec = result[1]                # Optimized vector
@@ -263,255 +263,24 @@ optimal_metric = result[2]             # Optimal metric value
 
 optimal_params = vector_to_param(optimal_vec, keys_list)
 
+
+
+
+
+println("-----------------------------------------------------")
+println("------------------SIMULATION RESULTS-----------------")
+println("-----------------------------------------------------")
+println("-----------------------------------------------------")
+
+
+optimal_params = add_parameters(optimal_params)
+
 println("Optimal Parameters: $optimal_params")
 println("Optimal Metric: $optimal_metric")
 
+circuit_temp, circuitdefs_temp = create_circuit(JJSmallStd, JJBigStd, optimal_params, fixed_params)
 
+p_temp = simulate_and_plot(optimal_params, sim_vars, fixed_params, circuit_temp, circuitdefs_temp)
 
-
-
-
-
-
-
-
-
-"""
-function generate_random_point()
-    
-    return Dict(key => rand(values) for (key, values) in sim_params)
-
-end
-
-
-
-#create an array of random points
-nRandomPoints = 3
-random_points = []
-
-for _ in 1:nRandomPoints
-
-    params_temp=generate_random_point()
-
-    push!(random_points, params_temp)
-
-end
-
-println(random_points[1])
-"""
-
-
-"""
-wp_alpha_vec=[]
-wphalf_alpha_vec=[]
-lin_alpha_vec=[]
-
-for params_temp in random_points
-
-    circuit_temp, circuitdefs_temp = create_circuit(JJSmallStd, JJBigStd, params_temp, fixed_params)
-
-    start_time = now()  
-    
-    alpha_wphalf, alpha_wp, alpha_lin, p4_temp = simulate_low_pump_power(params_temp, sim_vars, circuit_temp, circuitdefs_temp)  
-    
-    push!(wphalf_alpha_vec, alpha_wphalf)
-    push!(wp_alpha_vec, alpha_wp)
-    push!(lin_alpha_vec, alpha_lin)
-
-
-    p1p_temp, p2p_temp, p5_temp = simulate_at_fixed_flux(sim_vars, circuit_temp, circuitdefs_temp)
-    p_temp = final_report(params_temp, sim_vars, fixed_params, p1_temp, p2_temp, p3_temp, p4_temp, p1p_temp, p2p_temp, p5_temp)
-
-
-    end_time = now()
-
-    display(p4_temp)
-
-    println("Time taken: ", (end_time - start_time)/Second(1))
-
-end    
-
-delta_alpha_wp_vec =  abs.(wp_alpha_vec .- wphalf_alpha_vec)
-println(delta_alpha_wp_vec)
-delta_alpha_lin_vec =  abs.(lin_alpha_vec .- wphalf_alpha_vec)
-println(delta_alpha_lin_vec)
-
-
-
-
-
-function simulation_for_optmz(params_temp, JJSmallStd, JJBigStd, fixed_params, sim_vars)
-    
-    #Adding important parameters
-    params_temp[:N] = nMacrocells*params_temp[:loadingpitch] 
-    params_temp[:CgDensity] = (fixed_params[:CgDielectricK] * 8.854e-12) / (1e12 * params_temp[:CgDielectricThichness] * 1e-9)
-    params_temp[:CgAreaUNLoaded] = 150 + 20 * (params_temp[:smallJunctionArea] / params_temp[:alphaSNAIL])
-
-    circuit_temp, circuitdefs_temp = create_circuit(JJSmallStd, JJBigStd, params_temp, fixed_params)
-    
-    alpha_wphalf, alpha_wp, _, _ = simulate_low_pump_power(params_temp, sim_vars, circuit_temp, circuitdefs_temp) 
-    
-    return alpha_wphalf, alpha_wp
-
-end
-
-
-
-function cost_func(params, JJSmallStd, JJBigStd, fixed_params, sim_vars) #, delta_alpha_lin_vec, threshold)
-
-    alpha_wphalf, alpha_wp = simulation_for_optmz(params, JJSmallStd, JJBigStd, fixed_params, sim_vars)
-
-    return abs(alpha_wphalf - alpha_wp)
-
-end
-
-
-initial_params = generate_random_point()
-
-function sequential_minimization(params, nRandomPoints)
-
-    for i in 1:nRandomPoints
-
-        # Perform the optimization for the i-th element
-        result = optimize(p -> cost_func(p, JJSmallStd, JJBigStd, fixed_params, sim_vars), params)
-
-        # Update the parameters after each optimization
-        params = result.minimizer
-        
-        # Display the progress and result for each element
-        println("Optimal params for element dollaro i: ", params)
-        println("Minimum cost for element dollaro i: ", result.minimum)
-    end
-    
-    return params
-
-end
-
-
-
-
-
-
-
-
-
-
-
-
-#Valuation of the time as a function of the cells number
-
-nMacrocells_array = [3,20,40,80,100,130,160,200,250]
-loadingpitch = 3
-time_array=[]
-
-params_temp = Dict(key => rand(values) for (key, values) in sim_params)
-params_temp[:CgDensity] = (fixed_params[:CgDielectricK] * 8.854e-12) / (1e12 * params_temp[:CgDielectricThichness] * 1e-9)
-params_temp[:CgAreaUNLoaded] = 150 + 20 * (params_temp[:smallJunctionArea] / params_temp[:alphaSNAIL])
-
-for nMacrocells in nMacrocells_array
-
-    start_time = now() 
-
-    params_temp[:N] = nMacrocells*loadingpitch
-    circuit_temp, circuitdefs_temp = create_circuit(JJSmallStd, JJBigStd, params_temp, fixed_params)
-    p_temp = simulate_and_plot(params_temp, sim_vars, fixed_params, circuit_temp, circuitdefs_temp)
-
-    end_time = now() 
-
-    push!(time_array, (end_time - start_time)/Second(1))
-
-end
-
-println(nMacrocells_array)
-println(time_array)
-
-plt = plot(nMacrocells_array, time_array,
-    title="Time as a function of the number of cells", xlabel="nMacrocells", ylabel="time [s]")
-
-display(plt)
-
-
-
-
---------------------------------------------------------------------------------------------------
-
-
-
-
-# WARNING: for now choose only ONE parameter to iterate that YOU COMMENT below. In order to iterate it and fix all the others.
-
-# Fix the variables that you don't want to iterate
-fixed_vars = Dict(
-    
-    :loadingpitch => 2,
-    :nMacrocells => 20,                #Number of macrocell composed by loadingpitch. The total number of cells N=nMacrocells*loadingpitch.
-    :smallJunctionArea => 1,           #Tra 2 e 5 (meglio basso)   
-    #:alphaSNAIL => 0.2,                #Tra 0.1 e 0.25            
-    :LloadingCell => 2,                #Tra 1 e 6
-    :CgloadingCell => 1,               #Tra 1 e 6
-    :criticalCurrentDensity => 1,       #Tra 0.2 e 1         
-    :CgDielectricThichness => 80         #Tra 10 e 70
-)
-
-# Combine fixed variables with the current value for simulation
-params = merge(sim_params, fixed_vars)
-
-
-
-
-
-#-----------------------------------------------------------------------------------
-#-----------------------------STARTING SIMULATION-----------------------------------
-
-
-for (param_name, param_values) in params
-    
-    if haskey(fixed_vars, param_name)
-        continue
-    end
-
-    println("Simulating: ", param_name)  
-    println("-----------------------------------------")
-
-    # Loop through the values of the selected variable
-    for value in param_values
-
-
-        params_temp = merge(params, Dict(param_name => value))
-        
-        #Adding important parameters
-        params_temp[:N] = params_temp[:nMacrocells]*params_temp[:loadingpitch] 
-        params_temp[:CgDensity] = (fixed_params[:CgDielectricK] * 8.854e-12) / (1e12 * params_temp[:CgDielectricThichness] * 1e-9)
-        params_temp[:CgAreaUNLoaded] = 150 + 20 * (params_temp[:smallJunctionArea] / params_temp[:alphaSNAIL])
-
-        
-
-        # Circuit creation
-        circuit_temp, circuitdefs_temp = create_circuit(JJSmallStd, JJBigStd, params_temp, fixed_params)
-
-
-        # Run the simulation and generate the plot
-
-        # Unpack results with renamed variables
-        p1_temp, p2_temp, p3_temp, p4_temp = plot_low_pump_power(params_temp, sim_vars, circuit_temp, circuitdefs_temp)
-        
-        p1p_temp, p2p_temp, p5_temp = simulate_at_fixed_flux(sim_vars, circuit_temp, circuitdefs_temp)
-
-        p_temp = final_report(params_temp, sim_vars, fixed_params, p1_temp, p2_temp, p3_temp, p4_temp, p1p_temp, p2p_temp, p5_temp)
-
-        #p_temp = simulate_and_plot(params_temp, sim_vars, fixed_params, circuit_temp, circuitdefs_temp)
-
-    
-        # Display the plot
-        #display(p_temp)
-        display(p4_temp)
-
-
-     
-        println("-----------------------------------------")
-
-    end
-
-end
-
-"""
+println("Report completed")
+display(p_temp)
