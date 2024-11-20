@@ -1,4 +1,4 @@
-# Superconductive Quantum Circuit Simulations with the Harmonic Balance Method in Julia
+# Superconducting Quantum Circuit Simulations with the Harmonic Balance Method in Julia
 
 ## Description
 
