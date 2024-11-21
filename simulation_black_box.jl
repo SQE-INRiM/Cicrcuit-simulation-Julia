@@ -1,6 +1,6 @@
 #-------------------------------------SIMULATION AT LOW PUMP POWER-------------------------------------------
 
-function simulate_low_pump_power(params, sim_vars, circuit, circuitdefs)
+function simulate_low_pump_power(sim_vars, circuit, circuitdefs)
 
     
     # Initialize arrays for simulation output
@@ -10,7 +10,7 @@ function simulate_low_pump_power(params, sim_vars, circuit, circuitdefs)
     outvalsS22phidcSweep = zeros(Complex{Float64}, length(sim_vars[:ws]), length(sim_vars[:phidcSweep]))
     outvalsS21PhasephidcSweep = zeros(Float64, length(sim_vars[:ws]), length(sim_vars[:phidcSweep]))
     
-    println("First simulation")
+    println("1. Simulation at low pump power")
     
     # Run the simulation at low pump power
     @time for (k, phidcLocal) in enumerate(sim_vars[:phidcSweep])
@@ -35,9 +35,7 @@ function simulate_low_pump_power(params, sim_vars, circuit, circuitdefs)
 end 
 
 
-function plot_low_pump_power(params, sim_vars, circuit, circuitdefs)
-
-    outvalsS21phidcSweep, outvalsS12phidcSweep, outvalsS11phidcSweep, outvalsS22phidcSweep, outvalsS21PhasephidcSweep = simulate_low_pump_power(params, sim_vars, circuit, circuitdefs)
+function plot_low_pump_power(outvalsS21phidcSweep, outvalsS11phidcSweep, outvalsS21PhasephidcSweep, params, sim_vars)
 
     # Generate plots-----------------------------------------------------------------------
 
@@ -86,6 +84,9 @@ function plot_low_pump_power(params, sim_vars, circuit, circuitdefs)
 
 
     phidcIndex = findall(x -> x == sim_vars[:phidc], sim_vars[:phidcSweep])
+    println("phidcIndex: ", phidcIndex)
+    println((sim_vars[:ws] / (2 * pi * 1e9))[1])
+    println((-outvalsS21PhasephidcSweep[:, phidcIndex] / params[:N])[1])
 
     p4 = plot(
         sim_vars[:ws] / (2 * pi * 1e9),
@@ -99,6 +100,8 @@ function plot_low_pump_power(params, sim_vars, circuit, circuitdefs)
         label="",
         framestyle=:box
     )
+
+    println("plot done")
 
     vline!(p4, [sim_vars[:wp][1] / (2 * pi * 1e9)], width=2, color=:black, label="")
     vline!(p4, [(1 / 2) * sim_vars[:wp][1] / (2 * pi * 1e9)], width=2, style=:dash, color=:gray, label="")
@@ -147,19 +150,15 @@ function plot_low_pump_power(params, sim_vars, circuit, circuitdefs)
     
     plot!(p4, sim_vars[:ws] / (2 * pi * 1e9), m_phalf .* sim_vars[:ws] .+ q_phalf, label="wp/2 line", color=:darkred)
 
-    alpha_wphalf=atan(m_phalf[1])
-    alpha_wp=atan(m_p[1])
-    alpha_lin=atan(m[1])
-
 
     return  p1, p2, p3, p4          
 
 end
 
 
-function calculation_low_pump_power(params, sim_vars, circuit, circuitdefs)
 
-    outvalsS21phidcSweep, outvalsS12phidcSweep, outvalsS11phidcSweep, outvalsS22phidcSweep, outvalsS21PhasephidcSweep = simulate_low_pump_power(params, sim_vars, circuit, circuitdefs)
+function calculation_low_pump_power( outvalsS21PhasephidcSweep, params, sim_vars)
+
 
     wp = 2*pi* round(sim_vars[:fp], digits=-8)                                    #Put the nearest wp value included inside ws. The reason of this line is because for computational reason the wp cannot be a value of ws.
 
@@ -207,6 +206,62 @@ function calculation_low_pump_power(params, sim_vars, circuit, circuitdefs)
 
 end
 
+
+#------------------------------------------METRIC CALCULATIONS-------------------------------------------------------
+
+# This is the file that map the alpha value of the SNAIL to the corresponded flux value in order to have 3WM
+
+lines = readlines("G:/Shared drives/SuperQuElectronics/Students Folders/Emanuele Palumbo/flux_curve.txt")
+
+global alpha_map = [] 
+global flux_map = []
+
+for line in lines
+    # Split the line by commas and parse the values
+    parts = split(line, ",")
+    push!(alpha_map, parse(Float64, parts[1])) 
+    push!(flux_map, parse(Float64, parts[2]))  
+
+end
+
+
+
+function maxS11val_BandFreq_FixFlux(S11, params_temp, sim_vars)
+    
+    S11 = 10 * log10.(abs2.(S11))
+
+    # Find frequency range (band is between f = (6, 8) GHz with fp/2=7 GHz) 
+    fp = round(sim_vars[:fp], digits=-8)
+    w_lb = 2*pi*((fp/2)-1e9)
+    w_ub = 2*pi*((fp/2)+1e9)
+    w_lb_index = findall(x -> x == w_lb, sim_vars[:ws])
+    w_ub_index = findall(x -> x == w_ub, sim_vars[:ws])
+
+
+    # Find flux value and index 
+    alpha_temp=round(params_temp[:alphaSNAIL], digits=2)
+    println(alpha_temp)
+    flux_value = round(flux_map[findall(x -> x == alpha_temp, alpha_map)][1], digits=2)
+    println("flux_value", flux_value)
+    flux_index = findall(x -> x == flux_value, sim_vars[:phidcSweep])
+    println("flux_index", flux_index)
+
+
+    # Finding a vector of S11 value in the frequency band at the best flux value
+
+    S11_new=S11[w_lb_index[1]:w_ub_index[1],flux_index[1]]
+    #println(S11_new)
+    max_value=maximum(S11_new)
+    #println(max_value)
+
+    return max_value
+
+end
+
+
+
+
+
 #------------------------------------------SIMULATION AT FIXED FLUX---------------------------------------------------
 
 
@@ -219,7 +274,7 @@ function simulate_at_fixed_flux(sim_vars, circuit, circuitdefs)
     outvalsS22IpSweep = zeros(Complex{Float64}, length(sim_vars[:ws]), length(sim_vars[:IpSweep]))
 
 
-    println("Second simulation")
+    println("2. Simulation at fixed flux")
 
     @time for (k, IpSweepLocal) in enumerate(sim_vars[:IpSweep])
         sources = [
@@ -334,33 +389,31 @@ function final_report(params, sim_vars, fixed_params, p1, p2, p3, p4, p1p, p2p, 
     
     annotate!(empty_plot, 0.0, 0.5, text("""
     Design parameters:
-       loadingpitch = $(params[:loadingpitch]),
-       A_small = $(params[:smallJunctionArea]) μm²,
-       alphaSNAIL = $(params[:alphaSNAIL]),
-       LloadingCell = $(params[:LloadingCell]),
-       CgloadingCell = $(params[:CgloadingCell]),
-       CgAreaUNLOADED = $(params[:CgAreaUNLoaded])
+       loadingpitch = $(round(params[:loadingpitch], digits=3)),
+       A_small = $(round(params[:smallJunctionArea], digits=3)) μm²,
+       alphaSNAIL = $(round(params[:alphaSNAIL], digits=3)),
+       LloadingCell = $(round(params[:LloadingCell], digits=3)),
+       CgloadingCell = $(round(params[:CgloadingCell], digits=3)),
+       CgAreaUNLOADED = $(round(params[:CgAreaUNLoaded], digits=3))
     
     Fabrication parameters:
        Jc = $(value_criticalCurrentDensity) μA/μm²,
-       Cj density = $(fixed_params[:JosephsonCapacitanceDensity]) fF/μm²,
-       CgDielectricThickness = $(params[:CgDielectricThichness]),
+       Cj density = $(round(fixed_params[:JosephsonCapacitanceDensity], digits=3)) fF/μm²,
+       CgDielectricThickness = $(round(params[:CgDielectricThichness], digits=3)),
        Cg density = $(value_CgDensity) fF/μm²,
        Cg = $(value_Cg) fF
     
     Simulation parameters:
-       Number of Cells = $(params[:N]),
+       Number of Cells = $(round(params[:N], digits=3)),
        Number of Supercells = $(value_Supercells),
        fp = $(value_fp) GHz,
        Ip = $(value_IpGain) μA,
-       Phi_dc = $(sim_vars[:phidc]),
+       Phi_dc = $(round(sim_vars[:phidc], digits=3)),
     
-       NPumpHarm = $(sim_vars[:Npumpharmonics][1]),
-       NModHarm = $(sim_vars[:Nmodulationharmonics][1]),
-       NIter = $(sim_vars[:Niterations])
+       NPumpHarm = $(round(sim_vars[:Npumpharmonics][1], digits=3)),
+       NModHarm = $(round(sim_vars[:Nmodulationharmonics][1], digits=3)),
+       NIter = $(round(sim_vars[:Niterations], digits=3))
     """, 12, :black, halign=:left))
-    
-
 
     p = plot(p1, p2, p1p, p2p, p3, p4, p5, empty_plot, layout=(4, 2), margin=10Plots.mm, size=(1500, 2000))
     
@@ -374,7 +427,9 @@ end
 
 function simulate_and_plot(params_temp, sim_vars, fixed_params, circuit_temp, circuitdefs_temp)
 
-    p1,p2,p3,p4 = plot_low_pump_power(params_temp, sim_vars, circuit_temp, circuitdefs_temp)
+    S21, S12, S11, S22, S21phase = simulate_low_pump_power(sim_vars, circuit_temp, circuitdefs_temp)
+
+    p1,p2,p3,p4 = plot_low_pump_power(S21, S11, S21phase, params, sim_vars)
 
     p1p,p2p,p5 = simulate_at_fixed_flux(sim_vars, circuit_temp, circuitdefs_temp)
 
