@@ -34,7 +34,6 @@ function simulate_low_pump_power(sim_vars, circuit, circuitdefs)
 
 end 
 
-
 function plot_low_pump_power(outvalsS21phidcSweep, outvalsS11phidcSweep, outvalsS21PhasephidcSweep, params, sim_vars)
 
     # Generate plots-----------------------------------------------------------------------
@@ -52,7 +51,7 @@ function plot_low_pump_power(outvalsS21phidcSweep, outvalsS11phidcSweep, outvals
         legend=false,
         colorbar=true
     )
-    
+
 
     p2 = plot(
         sim_vars[:phidcSweep],
@@ -84,9 +83,6 @@ function plot_low_pump_power(outvalsS21phidcSweep, outvalsS11phidcSweep, outvals
 
 
     phidcIndex = findall(x -> x == sim_vars[:phidc], sim_vars[:phidcSweep])
-    println("phidcIndex: ", phidcIndex)
-    println((sim_vars[:ws] / (2 * pi * 1e9))[1])
-    println((-outvalsS21PhasephidcSweep[:, phidcIndex] / params[:N])[1])
 
     p4 = plot(
         sim_vars[:ws] / (2 * pi * 1e9),
@@ -101,8 +97,6 @@ function plot_low_pump_power(outvalsS21phidcSweep, outvalsS11phidcSweep, outvals
         framestyle=:box
     )
 
-    println("plot done")
-
     vline!(p4, [sim_vars[:wp][1] / (2 * pi * 1e9)], width=2, color=:black, label="")
     vline!(p4, [(1 / 2) * sim_vars[:wp][1] / (2 * pi * 1e9)], width=2, style=:dash, color=:gray, label="")
     vline!(p4, [(3 / 2) * sim_vars[:wp][1] / (2 * pi * 1e9)], width=2, style=:dash, color=:gray, label="")
@@ -112,7 +106,7 @@ function plot_low_pump_power(outvalsS21phidcSweep, outvalsS11phidcSweep, outvals
 
     wpIndex = findall(x -> x == wp, sim_vars[:ws])
     wphalfIndex = findall(x -> x == wp/2, sim_vars[:ws])
-    
+
     wp=sim_vars[:ws][wpIndex]
     wphalf=sim_vars[:ws][wphalfIndex]
 
@@ -124,9 +118,9 @@ function plot_low_pump_power(outvalsS21phidcSweep, outvalsS11phidcSweep, outvals
 
     m = (y1-y2)/(x1-x2)
     q = y2-m*x2
-    
+
     plot!(p4, sim_vars[:ws] / (2 * pi * 1e9), m .* sim_vars[:ws] .+ q, label="linear relation", color=:orange)
-    
+
     #line passing throug wp
     y1=-outvalsS21PhasephidcSweep[wpIndex[1], phidcIndex] / params[:N]
     y2=-outvalsS21PhasephidcSweep[1, phidcIndex] / params[:N]
@@ -135,9 +129,9 @@ function plot_low_pump_power(outvalsS21phidcSweep, outvalsS11phidcSweep, outvals
 
     m_p = (y1-y2)/(x1-x2)
     q_p = y2-m_p*x2
-    
+
     plot!(p4, sim_vars[:ws] / (2 * pi * 1e9), m_p .* sim_vars[:ws] .+ q_p, label="wp line", color=:darkblue)
-    
+
 
     #line passing throug wp/2 
     y1=-outvalsS21PhasephidcSweep[wphalfIndex[1], phidcIndex] / params[:N]
@@ -147,13 +141,12 @@ function plot_low_pump_power(outvalsS21phidcSweep, outvalsS11phidcSweep, outvals
 
     m_phalf=(y1-y2)/(x1-x2)
     q_phalf = y2-m_phalf*x2
-    
+
     plot!(p4, sim_vars[:ws] / (2 * pi * 1e9), m_phalf .* sim_vars[:ws] .+ q_phalf, label="wp/2 line", color=:darkred)
 
-
     return  p1, p2, p3, p4          
-
 end
+
 
 
 
@@ -209,7 +202,7 @@ end
 
 #------------------------------------------METRIC CALCULATIONS-------------------------------------------------------
 
-# This is the file that map the alpha value of the SNAIL to the corresponded flux value in order to have 3WM
+# This is the file that map the alpha value of the SNAIL to the corresponded flux value in order to have the best theoretical 3WM
 
 lines = readlines("G:/Shared drives/SuperQuElectronics/Students Folders/Emanuele Palumbo/flux_curve.txt")
 
@@ -240,11 +233,11 @@ function maxS11val_BandFreq_FixFlux(S11, params_temp, sim_vars)
 
     # Find flux value and index 
     alpha_temp=round(params_temp[:alphaSNAIL], digits=2)
-    println(alpha_temp)
+    #println("alpha_temp: ", alpha_temp)
     flux_value = round(flux_map[findall(x -> x == alpha_temp, alpha_map)][1], digits=2)
-    println("flux_value", flux_value)
+    #println("flux_value: ", flux_value)
     flux_index = findall(x -> x == flux_value, sim_vars[:phidcSweep])
-    println("flux_index", flux_index)
+    #println("flux_index: ", flux_index)
 
 
     # Finding a vector of S11 value in the frequency band at the best flux value
@@ -429,7 +422,7 @@ function simulate_and_plot(params_temp, sim_vars, fixed_params, circuit_temp, ci
 
     S21, S12, S11, S22, S21phase = simulate_low_pump_power(sim_vars, circuit_temp, circuitdefs_temp)
 
-    p1,p2,p3,p4 = plot_low_pump_power(S21, S11, S21phase, params, sim_vars)
+    p1,p2,p3,p4 = plot_low_pump_power(S21, S11, S21phase, params_temp, sim_vars)
 
     p1p,p2p,p5 = simulate_at_fixed_flux(sim_vars, circuit_temp, circuitdefs_temp)
 

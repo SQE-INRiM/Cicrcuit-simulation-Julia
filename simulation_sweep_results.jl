@@ -91,8 +91,6 @@ M = 0.999,                                                             # the inv
 
 """
 
-
-
 #------------------------------------SIMULATION---------------------------------------------------------
 #-------------------------------------------------------------------------------------------------------
 
@@ -157,13 +155,13 @@ sim_params_space = Dict(
 #-----------------------------STARTING SIMULATION-----------------------------------
 #-----------------------------------------------------------------------------------
 
-K=1
 
 # Define the cost function
 function cost(vec) #vector passing
     
-    println("Vector: ", vec)
     println("-----------------------------------------------------")
+    println("Vector: ", vec)
+
     params_temp = vector_to_param(vec, keys(sim_params_space))
     #println("Dictionary: ", params_temp)
 
@@ -173,41 +171,38 @@ function cost(vec) #vector passing
     circuit_temp, circuitdefs_temp = create_circuit(JJSmallStd, JJBigStd, params_temp, fixed_params)
     println("Circuit created")
 
+    S21, S12, S11, S22, S21phase = simulate_low_pump_power(sim_vars, circuit_temp, circuitdefs_temp)
+    println("S parameters calculated")
 
+    maxS11value = maxS11val_BandFreq_FixFlux(S11, params_temp, sim_vars)
+    println("Maxim value of S11: ", maxS11value)
 
+    alpha_wphalf, alpha_wp, alpha_lin  = calculation_low_pump_power(S21phase, params_temp, sim_vars)
 
-    S21, S12, S11, S22, S21phase = simulate_low_pump_power(params_temp, sim_vars, circuit_temp, circuitdefs_temp)
-
-    println("S11 is a ", typeof(S11))
-    println("S11:", S11[1,1])
-    S11_true = 10 * log10.(abs2.(S11))
-
-    println("S11 is a ", typeof(S11_true))
-    println("S11:", S11_true[1,1])
-
-
-
-
-
-
-
-    alpha_wphalf, alpha_wp, alpha_lin  = calculation_low_pump_power(S21, S12, S11, S22, S21phase, params_temp, sim_vars, circuit_temp, circuitdefs_temp) 
     println("Metric calculated")
 
     delta_alpha_wp=abs(alpha_wp - alpha_lin)
     delta_alpha_wphalf=abs(alpha_wphalf - alpha_lin)
 
+
     metric=abs(delta_alpha_wp-delta_alpha_wphalf) * (1/((abs(delta_alpha_wp*delta_alpha_wphalf))^(1/2)))
     
     println("Value: ", metric)
 
-    p_temp = simulate_and_plot(params_temp, sim_vars, fixed_params, circuit_temp, circuitdefs_temp)
-
-    display(p_temp)
-
     println("-----------------------------------------------------")
 
-    return metric
+    if maxS11value<-20                      #dBm
+
+        return metric
+
+    else
+
+        return exp(-metric)
+
+    end
+
+    #p_temp = simulate_and_plot(params_temp, sim_vars, fixed_params, circuit_temp, circuitdefs_temp)
+    #display(p_temp)
 
 end
 
@@ -258,8 +253,8 @@ result = surrogate_optimize(
     ub,
     my_k_SRBFN,
     RandomSample(),
-    maxiters = 5,           # Number of interactions. Incresing maxiters: Leads to a longer optimization process with potentially better solutions but at the cost of more time.
-    num_new_samples = 5     # Number of point generated for every single interaction. Incresing num_new_samples: Allows each iteration to consider a broader range of candidate points, 
+    maxiters = 10,           # Number of interactions. Incresing maxiters: Leads to a longer optimization process with potentially better solutions but at the cost of more time.
+    num_new_samples = 10     # Number of point generated for every single interaction. Incresing num_new_samples: Allows each iteration to consider a broader range of candidate points, 
                             # improving the chance of finding a good solution early but also increasing the computational cost per iteration.
 )
 
@@ -278,8 +273,6 @@ Larger maxiters: To allow for more refinement.
 """
 
 
-
-#println("Results: ", result)
 
 keys_list = collect(keys(sim_params_space))  # Extract parameter names
 optimal_vec = result[1]                # Optimized vector
