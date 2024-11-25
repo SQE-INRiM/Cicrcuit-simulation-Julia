@@ -8,7 +8,6 @@ using Dates
 using LaTeXStrings
 using ColorTypes
 using Symbolics
-using Dates
 using Distributions
 
 using Surrogates
@@ -142,18 +141,22 @@ sim_params_space = Dict(
     :nMacrocells => [20],                        
     :smallJunctionArea => collect(2:0.5:5),                        
     :alphaSNAIL => collect(0.1:0.05:0.25),                    
-    :LloadingCell => [1, 2, 3],                           
-    :CgloadingCell => [1, 2],                             
-    :criticalCurrentDensity => [0.2, 0.5],                
+    :LloadingCell => [1, 3, 4, 6],                           
+    :CgloadingCell => [1, 3, 4, 6],                             
+    :criticalCurrentDensity => [0.2, 0.5, 1],                
     :CgDielectricThichness => [10, 20, 40, 70]                    
 )
 
+# Impedence match, set maximum value of S11 in dBm
+
+max_S11_Zmatch = -6
 
 
 
 #-----------------------------------------------------------------------------------
 #-----------------------------STARTING SIMULATION-----------------------------------
 #-----------------------------------------------------------------------------------
+
 
 
 # Define the cost function
@@ -175,7 +178,7 @@ function cost(vec) #vector passing
     println("S parameters calculated")
 
     maxS11value = maxS11val_BandFreq_FixFlux(S11, params_temp, sim_vars)
-    println("Maxim value of S11: ", maxS11value)
+    println("Maximum value of S11: ", maxS11value)
 
     alpha_wphalf, alpha_wp, alpha_lin  = calculation_low_pump_power(S21phase, params_temp, sim_vars)
 
@@ -184,23 +187,18 @@ function cost(vec) #vector passing
     delta_alpha_wp=abs(alpha_wp - alpha_lin)
     delta_alpha_wphalf=abs(alpha_wphalf - alpha_lin)
 
+    metric_angles = abs(delta_alpha_wp-delta_alpha_wphalf) * (1/((abs(delta_alpha_wp*delta_alpha_wphalf))^(1/2)))
+    println("a. Angles contribute: ", metric_angles)
 
-    metric=abs(delta_alpha_wp-delta_alpha_wphalf) * (1/((abs(delta_alpha_wp*delta_alpha_wphalf))^(1/2)))
-    
-    println("Value: ", metric)
+    metric_impedance = (10/abs(maxS11value))
+    println("b. Impedance matching contibute: ", metric_impedance)
 
+    metric = metric_impedance + metric_angles 
+    println("Final value: ", metric)
     println("-----------------------------------------------------")
 
-    if maxS11value<-20                      #dBm
 
-        return metric
-
-    else
-
-        return exp(-metric)
-
-    end
-
+    return metric
     #p_temp = simulate_and_plot(params_temp, sim_vars, fixed_params, circuit_temp, circuitdefs_temp)
     #display(p_temp)
 
@@ -221,7 +219,7 @@ println("Upper bounds:", ub)
 
 
 
-n_initial_points = 10
+n_initial_points = 30
 initial_points = generate_n_initial_points(n_initial_points, sim_params_space)
 println("Initial points: ", initial_points)
 
@@ -245,7 +243,11 @@ println("-----------------------------------------------------")
 println("---STARTING GAUSSIAN PROCESS BAYESIAN OPTIMIZATION---")
 println("-----------------------------------------------------")
 
+
 # Perform Gaussian Process optimization
+
+start_time = time()
+
 result = surrogate_optimize(
     cost,
     SRBF(),
@@ -253,11 +255,12 @@ result = surrogate_optimize(
     ub,
     my_k_SRBFN,
     RandomSample(),
-    maxiters = 10,           # Number of interactions. Incresing maxiters: Leads to a longer optimization process with potentially better solutions but at the cost of more time.
-    num_new_samples = 10     # Number of point generated for every single interaction. Incresing num_new_samples: Allows each iteration to consider a broader range of candidate points, 
+    maxiters = 30,           # Number of interactions. Incresing maxiters: Leads to a longer optimization process with potentially better solutions but at the cost of more time.
+    num_new_samples = 30     # Number of point generated for every single interaction. Incresing num_new_samples: Allows each iteration to consider a broader range of candidate points, 
                             # improving the chance of finding a good solution early but also increasing the computational cost per iteration.
 )
 
+println("Complete simulation time spent: ",  time() - start_time)
 
 """
 Balancing these maxiters and num_new_samples is essential for efficient optimization. 
@@ -297,7 +300,13 @@ println("Optimal Metric: $optimal_metric")
 
 circuit_temp, circuitdefs_temp = create_circuit(JJSmallStd, JJBigStd, optimal_params, fixed_params)
 
-p_temp = simulate_and_plot(optimal_params, sim_vars, fixed_params, circuit_temp, circuitdefs_temp)
 
-println("Report completed")
-display(p_temp)
+
+p1,p2,p3,p4 = plot_low_pump_power(S21, S11, S21phase, optimal_params, sim_vars)
+xlim!(p1, 5/1e9, 9/1e9)
+
+plot(p1, p2, layout=(1, 2), size=(800, 400))
+#p_temp = simulate_and_plot(optimal_params, sim_vars, fixed_params, circuit_temp, circuitdefs_temp)
+
+#println("Report completed")
+#display(p_temp)

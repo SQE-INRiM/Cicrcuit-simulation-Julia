@@ -34,6 +34,8 @@ function simulate_low_pump_power(sim_vars, circuit, circuitdefs)
 
 end 
 
+
+
 function plot_low_pump_power(outvalsS21phidcSweep, outvalsS11phidcSweep, outvalsS21PhasephidcSweep, params, sim_vars)
 
     # Generate plots-----------------------------------------------------------------------
@@ -81,8 +83,8 @@ function plot_low_pump_power(outvalsS21phidcSweep, outvalsS11phidcSweep, outvals
         colorbar=true
     )
 
-
-    phidcIndex = findall(x -> x == sim_vars[:phidc], sim_vars[:phidcSweep])
+    
+    phidcIndex = findall(x -> x == params[:phidc], sim_vars[:phidcSweep])
 
     p4 = plot(
         sim_vars[:ws] / (2 * pi * 1e9),
@@ -150,12 +152,12 @@ end
 
 
 
-function calculation_low_pump_power( outvalsS21PhasephidcSweep, params, sim_vars)
+function calculation_low_pump_power(outvalsS21PhasephidcSweep, params, sim_vars)
 
 
     wp = 2*pi* round(sim_vars[:fp], digits=-8)                                    #Put the nearest wp value included inside ws. The reason of this line is because for computational reason the wp cannot be a value of ws.
 
-    phidcIndex = findall(x -> x == sim_vars[:phidc], sim_vars[:phidcSweep])
+    phidcIndex = findall(x -> x == params[:phidc], sim_vars[:phidcSweep])
     wpIndex = findall(x -> x == wp, sim_vars[:ws])
     wphalfIndex = findall(x -> x == wp/2, sim_vars[:ws])
     
@@ -191,13 +193,14 @@ function calculation_low_pump_power( outvalsS21PhasephidcSweep, params, sim_vars
     m_phalf=(y1-y2)/(x1-x2)
     q_phalf = y2-m_phalf*x2
 
-    alpha_wphalf=atan(m_phalf[1])
-    alpha_wp=atan(m_p[1])
     alpha_lin=atan(m[1])
+    alpha_wp=atan(m_p[1])
+    alpha_wphalf=atan(m_phalf[1])
 
     return alpha_wphalf, alpha_wp, alpha_lin
 
 end
+
 
 
 #------------------------------------------METRIC CALCULATIONS-------------------------------------------------------
@@ -218,6 +221,18 @@ for line in lines
 end
 
 
+function find_flux_from_alpha(params_temp)
+
+        # Find flux value and index 
+        alpha_temp=round(params_temp[:alphaSNAIL], digits=2)
+        #println("alpha_temp: ", alpha_temp)
+        flux_value = round(flux_map[findall(x -> x == alpha_temp, alpha_map)][1], digits=2)
+        #println("flux_value: ", flux_value)
+
+        return flux_value
+
+end    
+
 
 function maxS11val_BandFreq_FixFlux(S11, params_temp, sim_vars)
     
@@ -230,13 +245,8 @@ function maxS11val_BandFreq_FixFlux(S11, params_temp, sim_vars)
     w_lb_index = findall(x -> x == w_lb, sim_vars[:ws])
     w_ub_index = findall(x -> x == w_ub, sim_vars[:ws])
 
-
-    # Find flux value and index 
-    alpha_temp=round(params_temp[:alphaSNAIL], digits=2)
-    #println("alpha_temp: ", alpha_temp)
-    flux_value = round(flux_map[findall(x -> x == alpha_temp, alpha_map)][1], digits=2)
-    #println("flux_value: ", flux_value)
-    flux_index = findall(x -> x == flux_value, sim_vars[:phidcSweep])
+    #println("Flux value: ", params_temp[:phidc])
+    flux_index = findall(x -> x == params_temp[:phidc], sim_vars[:phidcSweep])
     #println("flux_index: ", flux_index)
 
 
@@ -258,7 +268,7 @@ end
 #------------------------------------------SIMULATION AT FIXED FLUX---------------------------------------------------
 
 
-function simulate_at_fixed_flux(sim_vars, circuit, circuitdefs)
+function simulate_at_fixed_flux(params, sim_vars, circuit, circuitdefs)
     
     # Accessing ws inside the sim_vars dictionary
     outvalsS21IpSweep = zeros(Complex{Float64}, length(sim_vars[:ws]), length(sim_vars[:IpSweep]))
@@ -271,7 +281,7 @@ function simulate_at_fixed_flux(sim_vars, circuit, circuitdefs)
 
     @time for (k, IpSweepLocal) in enumerate(sim_vars[:IpSweep])
         sources = [
-            (mode=(0,), port=3, current=sim_vars[:phidc] * (2 * 280 * 1e-6)),
+            (mode=(0,), port=3, current=params[:phidc] * (2 * 280 * 1e-6)),
             (mode=(1,), port=1, current=IpSweepLocal),
         ]
         
@@ -282,7 +292,6 @@ function simulate_at_fixed_flux(sim_vars, circuit, circuitdefs)
         outvalsS11IpSweep[:, k] = sol.linearized.S((0,), 1, (0,), 1, :)
         outvalsS22IpSweep[:, k] = sol.linearized.S((0,), 2, (0,), 2, :)
     end
-
 
 
     # Generate plots-----------------------------------------------------------------------------------------------
@@ -340,9 +349,9 @@ function final_report(params, sim_vars, fixed_params, p1, p2, p3, p4, p1p, p2p, 
 
     
     # Plot customization
-    vline!(p1, [sim_vars[:phidc]], width=2, style=:dash, color=:black)
-    vline!(p2, [sim_vars[:phidc]], width=2, style=:dash, color=:black)
-    vline!(p3, [sim_vars[:phidc]], width=2, style=:dash, color=:black)
+    vline!(p1, [params[:phidc]], width=2, style=:dash, color=:black)
+    vline!(p2, [params[:phidc]], width=2, style=:dash, color=:black)
+    vline!(p3, [params[:phidc]], width=2, style=:dash, color=:black)
 
     hline!(p1, [sim_vars[:wp][1] / (2 * pi * 1e9)], width=2, color=:black)
     hline!(p2, [sim_vars[:wp][1] / (2 * pi * 1e9)], width=2, color=:black)
@@ -401,7 +410,7 @@ function final_report(params, sim_vars, fixed_params, p1, p2, p3, p4, p1p, p2p, 
        Number of Supercells = $(value_Supercells),
        fp = $(value_fp) GHz,
        Ip = $(value_IpGain) μA,
-       Phi_dc = $(round(sim_vars[:phidc], digits=3)),
+       Phi_dc = $(round(params[:phidc], digits=3)),
     
        NPumpHarm = $(round(sim_vars[:Npumpharmonics][1], digits=3)),
        NModHarm = $(round(sim_vars[:Nmodulationharmonics][1], digits=3)),
@@ -420,11 +429,11 @@ end
 
 function simulate_and_plot(params_temp, sim_vars, fixed_params, circuit_temp, circuitdefs_temp)
 
-    S21, S12, S11, S22, S21phase = simulate_low_pump_power(sim_vars, circuit_temp, circuitdefs_temp)
+    S21, _, S11, _, S21phase = simulate_low_pump_power(sim_vars, circuit_temp, circuitdefs_temp)
 
     p1,p2,p3,p4 = plot_low_pump_power(S21, S11, S21phase, params_temp, sim_vars)
 
-    p1p,p2p,p5 = simulate_at_fixed_flux(sim_vars, circuit_temp, circuitdefs_temp)
+    p1p,p2p,p5 = simulate_at_fixed_flux(params_temp, sim_vars, circuit_temp, circuitdefs_temp)
 
     p_temp = final_report(params_temp, sim_vars, fixed_params, p1, p2, p3, p4, p1p, p2p, p5)
 
