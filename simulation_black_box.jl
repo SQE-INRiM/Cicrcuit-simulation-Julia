@@ -45,7 +45,7 @@ function plot_low_pump_power(outvalsS21phidcSweep, outvalsS11phidcSweep, outvals
         sim_vars[:ws] / (2 * pi * 1e9),
         10 * log10.(abs2.(outvalsS11phidcSweep)),
         seriestype=:heatmap,
-        c=cgrad(:viridis, rev=true),
+        c=cgrad(:viridis),
         clim=(-30, 0),
         xlabel=L"\phi / \phi_{0}",
         ylabel=L"f / GHz",
@@ -92,7 +92,7 @@ function plot_low_pump_power(outvalsS21phidcSweep, outvalsS11phidcSweep, outvals
         xlabel=L"f / GHz",
         ylabel=L"k / rad \cdot cells^{-1}",
         title="Dispersion relation",
-        #ylim=(0.0, 1.5),
+        ylim=(0.0, 1.5),
         legend=true,
         colorbar=true,
         label="",
@@ -104,10 +104,11 @@ function plot_low_pump_power(outvalsS21phidcSweep, outvalsS11phidcSweep, outvals
     vline!(p4, [(3 / 2) * sim_vars[:wp][1] / (2 * pi * 1e9)], width=2, style=:dash, color=:gray, label="")
     vline!(p4, [2 * sim_vars[:wp][1] / (2 * pi * 1e9)], width=2, color=:gray,label="")
 
-    wp = 2*pi* round(sim_vars[:fp], digits=-8)                                    #Put the nearest wp value included inside ws. The reason of this line is because for computational reason the wp cannot be a value of ws.
+    wp = 2*pi* round(sim_vars[:fp], digits=-8)
+    wphalf = 2*pi* round(sim_vars[:fp]/2, digits=-8)                                    #Put the nearest wp value included inside ws. The reason of this line is because for computational reason the wp cannot be a value of ws.
 
     wpIndex = findall(x -> x == wp, sim_vars[:ws])
-    wphalfIndex = findall(x -> x == wp/2, sim_vars[:ws])
+    wphalfIndex = findall(x -> x == wphalf, sim_vars[:ws])
 
     wp=sim_vars[:ws][wpIndex]
     wphalf=sim_vars[:ws][wphalfIndex]
@@ -155,11 +156,12 @@ end
 function calculation_low_pump_power(outvalsS21PhasephidcSweep, params, sim_vars)
 
 
-    wp = 2*pi* round(sim_vars[:fp], digits=-8)                                    #Put the nearest wp value included inside ws. The reason of this line is because for computational reason the wp cannot be a value of ws.
+    wp = 2*pi* round(sim_vars[:fp], digits=-8)                              #Put the nearest wp value included inside ws. The reason of this line is because for computational reason the wp cannot be a value of ws.
+    wphalf = 2*pi* round(sim_vars[:fp]/2, digits=-8)  
 
     phidcIndex = findall(x -> x == params[:phidc], sim_vars[:phidcSweep])
     wpIndex = findall(x -> x == wp, sim_vars[:ws])
-    wphalfIndex = findall(x -> x == wp/2, sim_vars[:ws])
+    wphalfIndex = findall(x -> x == wphalf, sim_vars[:ws])
     
     wp=sim_vars[:ws][wpIndex]
     wphalf=sim_vars[:ws][wphalfIndex]
@@ -239,9 +241,9 @@ function maxS11val_BandFreq_FixFlux(S11, params_temp, sim_vars)
     S11 = 10 * log10.(abs2.(S11))
 
     # Find frequency range (band is between f = (6, 8) GHz with fp/2=7 GHz) 
-    fp = round(sim_vars[:fp], digits=-8)
-    w_lb = 2*pi*((fp/2)-1e9)
-    w_ub = 2*pi*((fp/2)+1e9)
+    fphalf = round(sim_vars[:fp]/2, digits=-8)
+    w_lb = 2*pi*((fphalf)-1e9)
+    w_ub = 2*pi*((fphalf)+1e9)
     w_lb_index = findall(x -> x == w_lb, sim_vars[:ws])
     w_ub_index = findall(x -> x == w_ub, sim_vars[:ws])
 
@@ -409,7 +411,7 @@ function final_report(params, sim_vars, fixed_params, p1, p2, p3, p4, p1p, p2p, 
        Number of Cells = $(round(params[:N], digits=3)),
        Number of Supercells = $(value_Supercells),
        fp = $(value_fp) GHz,
-       Ip = $(value_IpGain) μA,
+       IpGain = $(value_IpGain) μA,
        Phi_dc = $(round(params[:phidc], digits=3)),
     
        NPumpHarm = $(round(sim_vars[:Npumpharmonics][1], digits=3)),

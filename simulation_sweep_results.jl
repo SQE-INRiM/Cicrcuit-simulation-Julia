@@ -9,6 +9,7 @@ using LaTeXStrings
 using ColorTypes
 using Symbolics
 using Distributions
+using Dates
 
 using Surrogates
 using LinearAlgebra
@@ -102,7 +103,7 @@ fixed_params = Dict(
     :nodePerCell => 4,                 # Nodes per cell
 
     # Fabrication parameters (fixed)
-    :JosephsonCapacitanceDensity => 45, # Unit value
+    :JosephsonCapacitanceDensity => 10, # Unit value
     :CgDielectricK => 9.6,             # Dielectric constant
     :tandeltaCgDielectric => 2.1e-3,   # Loss tangent of dielectric
 )
@@ -111,12 +112,11 @@ fixed_params = Dict(
 
 sim_vars = Dict(
     
-    :fs => (0.1:0.1:30.0) * 1e9,
-    :fp =>  14.001 * 1e9,
-    :Ip => 0.00001e-6,
-    :IpGain => 0.8e-6,
-    :IpSweep => (0.8:0.1:0.8) * 1e-6, #0.8 iniziale
-    :phidc => 0.38,
+    :fs => (3:0.1:30.0) * 1e9,
+    :fp =>  13.301 * 1e9,
+    :Ip =>  0.00001e-6,
+    :IpGain => 0.25e-6,
+    :IpSweep => (0.1:0.05:0.3)*1e-6, #0.8*1e-6 iniziale
     :phidcSweep => (0:0.01:0.5),
     :Npumpharmonics => (8,),
     :Nmodulationharmonics => (4,),
@@ -132,24 +132,20 @@ sim_vars[:wp] = (2 * pi * sim_vars[:fp],)
 
 #PARAMETER SCAN
 
-JJSmallStd = 0.05               #Tra 0.05 e 0.2             # =0 -> perfect fab , 0.1 -> 10% spread
-JJBigStd = 0.05                 #Tra 0.05 e 0.2             # =0 -> perfect fab , 0.1 -> 10% spread
+JJSmallStd = 0        #Tra 0.05 e 0.2             # =0 -> perfect fab , 0.1 -> 10% spread
+JJBigStd = 0               #Tra 0.05 e 0.2             # =0 -> perfect fab , 0.1 -> 10% spread
 
 # Define the parameter arrays directly in the dictionary
 sim_params_space = Dict(
-    :loadingpitch => [2],
-    :nMacrocells => [20],                        
-    :smallJunctionArea => collect(2:0.5:5),                        
-    :alphaSNAIL => collect(0.1:0.05:0.25),                    
-    :LloadingCell => [1, 3, 4, 6],                           
-    :CgloadingCell => [1, 3, 4, 6],                             
-    :criticalCurrentDensity => [0.2, 0.5, 1],                
-    :CgDielectricThichness => [10, 20, 40, 70]                    
+    :loadingpitch => [3],
+    :nMacrocells => [50],   #20                     
+    :smallJunctionArea => [0.7], #collect(0.5:0.25:1.5),                        
+    :alphaSNAIL => [0.16], # collect(0.1:0.025:0.2),                    
+    :LloadingCell => [1.5], #collect(1:0.25:2),                           
+    :CgloadingCell => [1], #collect(0.5:0.25:1.5),                             
+    :criticalCurrentDensity => [0.4], #collect(0.1:0.1:0.9),                
+    :CgDielectricThichness => collect(80:1:100)                   
 )
-
-# Impedence match, set maximum value of S11 in dBm
-
-max_S11_Zmatch = -6
 
 
 
@@ -170,6 +166,7 @@ function cost(vec) #vector passing
 
     params_temp = add_parameters(params_temp)
     println("Dictionary update: ", params_temp)
+    #println("flux value: ", params_temp[:phidc], " for alpha: ", params_temp[:alphaSNAIL])
 
     circuit_temp, circuitdefs_temp = create_circuit(JJSmallStd, JJBigStd, params_temp, fixed_params)
     println("Circuit created")
@@ -180,20 +177,20 @@ function cost(vec) #vector passing
     maxS11value = maxS11val_BandFreq_FixFlux(S11, params_temp, sim_vars)
     println("Maximum value of S11: ", maxS11value)
 
-    alpha_wphalf, alpha_wp, alpha_lin  = calculation_low_pump_power(S21phase, params_temp, sim_vars)
+    #alpha_wphalf, alpha_wp, alpha_lin  = calculation_low_pump_power(S21phase, params_temp, sim_vars)
 
     println("Metric calculated")
 
-    delta_alpha_wp=abs(alpha_wp - alpha_lin)
-    delta_alpha_wphalf=abs(alpha_wphalf - alpha_lin)
+    #delta_alpha_wp=abs(alpha_wp - alpha_lin)
+    #delta_alpha_wphalf=abs(alpha_wphalf - alpha_lin)
 
-    metric_angles = abs(delta_alpha_wp-delta_alpha_wphalf) * (1/((abs(delta_alpha_wp*delta_alpha_wphalf))^(1/2)))
-    println("a. Angles contribute: ", metric_angles)
+    #metric_angles = abs(delta_alpha_wp-delta_alpha_wphalf) * (1/((abs(delta_alpha_wp*delta_alpha_wphalf))^(1/2)))
+    #println("   a. Angles contribute: ", metric_angles)
 
-    metric_impedance = (10/abs(maxS11value))
-    println("b. Impedance matching contibute: ", metric_impedance)
+    metric_impedance = (20/abs(maxS11value))
+    println("   b. Impedance matching contibute: ", metric_impedance)
 
-    metric = metric_impedance + metric_angles 
+    metric = metric_impedance #+ metric_angles 
     println("Final value: ", metric)
     println("-----------------------------------------------------")
 
@@ -207,7 +204,7 @@ end
 
 
 
-println("START")
+println("STARTING AT: ", (Dates.now()))
 #Return upper and lower boundaries
 bounds = [extrema(v) for v in values(sim_params_space)]
 println("Bounds: ", bounds)
@@ -219,7 +216,7 @@ println("Upper bounds:", ub)
 
 
 
-n_initial_points = 30
+n_initial_points = 5
 initial_points = generate_n_initial_points(n_initial_points, sim_params_space)
 println("Initial points: ", initial_points)
 
@@ -255,12 +252,15 @@ result = surrogate_optimize(
     ub,
     my_k_SRBFN,
     RandomSample(),
-    maxiters = 30,           # Number of interactions. Incresing maxiters: Leads to a longer optimization process with potentially better solutions but at the cost of more time.
-    num_new_samples = 30     # Number of point generated for every single interaction. Incresing num_new_samples: Allows each iteration to consider a broader range of candidate points, 
+    maxiters = 5,           # Number of interactions. Incresing maxiters: Leads to a longer optimization process with potentially better solutions but at the cost of more time.
+    num_new_samples = 5     # Number of point generated for every single interaction. Incresing num_new_samples: Allows each iteration to consider a broader range of candidate points, 
                             # improving the chance of finding a good solution early but also increasing the computational cost per iteration.
 )
 
-println("Complete simulation time spent: ",  time() - start_time)
+
+println("-----------------------------------------------------")
+println("ENDING AT: ", (Dates.now()))
+println("Complete simulation time: ", round((time() - start_time) / 60), " minutes and ", Int(round((time()-start_time) % 60))," seconds.")
 
 """
 Balancing these maxiters and num_new_samples is essential for efficient optimization. 
@@ -282,31 +282,40 @@ optimal_vec = result[1]                # Optimized vector
 optimal_metric = result[2]             # Optimal metric value
 
 optimal_params = vector_to_param(optimal_vec, keys_list)
+optimal_params = add_parameters(optimal_params)
 
 
-
-
-
+println("-----------------------------------------------------")
 println("-----------------------------------------------------")
 println("------------------SIMULATION RESULTS-----------------")
 println("-----------------------------------------------------")
 println("-----------------------------------------------------")
 
 
-optimal_params = add_parameters(optimal_params)
+cost(optimal_vec)
 
 println("Optimal Parameters: $optimal_params")
 println("Optimal Metric: $optimal_metric")
 
+
+
 circuit_temp, circuitdefs_temp = create_circuit(JJSmallStd, JJBigStd, optimal_params, fixed_params)
 
+S21, _, S11, _, S21phase = simulate_low_pump_power(sim_vars, circuit_temp, circuitdefs_temp)
 
+maxS11 = maxS11val_BandFreq_FixFlux(S11, optimal_params, sim_vars)
+println("Maximum S11: ", maxS11)
+
+println("Cg Dielectric Thickness: ", optimal_params[:CgDielectricThichness])
 
 p1,p2,p3,p4 = plot_low_pump_power(S21, S11, S21phase, optimal_params, sim_vars)
-xlim!(p1, 5/1e9, 9/1e9)
+hline!(p1, [(6)], width=2, color=:black, label="")
+hline!(p1, [(8)], width=2, color=:black, label="")
+vline!(p1, [(optimal_params[:phidc])], width=2, color=:black, label="")
+p=plot(p1,p4,layout=(2,1), size=(600, 700))
+display(p)
 
-plot(p1, p2, layout=(1, 2), size=(800, 400))
-#p_temp = simulate_and_plot(optimal_params, sim_vars, fixed_params, circuit_temp, circuitdefs_temp)
+p_temp = simulate_and_plot(optimal_params, sim_vars, fixed_params, circuit_temp, circuitdefs_temp)
 
-#println("Report completed")
-#display(p_temp)
+println("Report completed")
+display(p_temp)

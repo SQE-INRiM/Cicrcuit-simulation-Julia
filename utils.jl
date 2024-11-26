@@ -11,8 +11,8 @@ function add_parameters(params_temp)
     #Adding important parameters
     params_temp[:N] = params_temp[:nMacrocells]*params_temp[:loadingpitch] 
     params_temp[:CgDensity] = (fixed_params[:CgDielectricK] * 8.854e-12) / (1e12 * params_temp[:CgDielectricThichness] * 1e-9)
-    params_temp[:CgAreaUNLoaded] = 150 + 20 * (params_temp[:smallJunctionArea] / params_temp[:alphaSNAIL])
-    params_temp[:phidc] = find_flux_from_alpha(params_temp) 
+    params_temp[:CgAreaUNLoaded] = 200 #150 + 20 * (params_temp[:smallJunctionArea] / params_temp[:alphaSNAIL])
+    params_temp[:phidc] = 0.38 #find_flux_from_alpha(params_temp) 
 
     return params_temp
 end
