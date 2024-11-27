@@ -36,6 +36,81 @@ end
 
 
 
+
+
+function calculation_lines_low_pump_power(outvalsS21PhasephidcSweep, params, sim_vars)
+
+
+    wp = 2*pi* round(sim_vars[:fp], digits=-8)                              #Put the nearest wp value included inside ws. The reason of this line is because for computational reason the wp cannot be a value of ws.
+    wphalf = 2*pi* round(sim_vars[:fp]/2, digits=-8)  
+
+    phidcIndex = findall(x -> x == params[:phidc], sim_vars[:phidcSweep])
+    wpIndex = findall(x -> x == wp, sim_vars[:ws])
+    wphalfIndex = findall(x -> x == wphalf, sim_vars[:ws])
+    
+    wp=sim_vars[:ws][wpIndex]
+    wphalf=sim_vars[:ws][wphalfIndex]
+
+    #linear relation
+    y1=-outvalsS21PhasephidcSweep[10, phidcIndex] / params[:N]
+    y2=-outvalsS21PhasephidcSweep[1, phidcIndex] / params[:N]
+    x1=sim_vars[:ws][10]
+    x2=sim_vars[:ws][1]
+
+    m = (y1-y2)/(x1-x2)
+    q = y2-m*x2
+    
+    
+    #line passing throug wp
+    y1=-outvalsS21PhasephidcSweep[wpIndex[1], phidcIndex] / params[:N]
+    y2=-outvalsS21PhasephidcSweep[1, phidcIndex] / params[:N]
+    x1=sim_vars[:ws][wpIndex[1]]
+    x2=sim_vars[:ws][1]
+
+    m_p = (y1-y2)/(x1-x2)
+    q_p = y2-m_p*x2
+    
+
+    #line passing throug wp/2 
+    y1=-outvalsS21PhasephidcSweep[wphalfIndex[1], phidcIndex] / params[:N]
+    y2=-outvalsS21PhasephidcSweep[1, phidcIndex] / params[:N]
+    x1=sim_vars[:ws][wphalfIndex[1]]
+    x2=sim_vars[:ws][1]
+
+    m_phalf=(y1-y2)/(x1-x2)
+    q_phalf = y2-m_phalf*x2
+
+
+
+    #line passing throug wp and wp-n 
+    y1=-outvalsS21PhasephidcSweep[wpIndex[1], phidcIndex] / params[:N]
+    y2=-outvalsS21PhasephidcSweep[wpIndex[1]-15, phidcIndex] / params[:N]
+    x1=sim_vars[:ws][wpIndex[1]]
+    x2=sim_vars[:ws][wpIndex[1]-15]
+    m_stopband=(y1-y2)/(x1-x2)
+    q_stopband = y2-m_stopband*x2
+
+
+    return m, q, m_p, q_p, m_phalf, q_phalf, m_stopband, q_stopband
+
+end
+
+function calculation_metric_lines(outvalsS21PhasephidcSweep, params, sim_vars)
+
+    m, _, m_p, _, m_phalf, _, m_stopband, _ = calculation_lines_low_pump_power(outvalsS21PhasephidcSweep, params, sim_vars)
+
+    alpha_lin=atan(m[1])
+    alpha_wp=atan(m_p[1])
+    alpha_wphalf=atan(m_phalf[1])
+    alpha_stopband =atan(m_stopband[1])
+
+    return alpha_wphalf, alpha_wp, alpha_lin, alpha_stopband
+
+end
+
+
+
+
 function plot_low_pump_power(outvalsS21phidcSweep, outvalsS11phidcSweep, outvalsS21PhasephidcSweep, params, sim_vars)
 
     # Generate plots-----------------------------------------------------------------------
@@ -99,109 +174,46 @@ function plot_low_pump_power(outvalsS21phidcSweep, outvalsS11phidcSweep, outvals
         framestyle=:box
     )
 
+
+    m, q, m_p, q_p, m_phalf, q_phalf, m_stopband, q_stopband = calculation_lines_low_pump_power(outvalsS21PhasephidcSweep, params, sim_vars)
+
+
+
+    #plot!(p4, sim_vars[:ws] / (2 * pi * 1e9), m .* sim_vars[:ws] .+ q, label="linear relation", color=:orange)
+    #plot!(p4, sim_vars[:ws] / (2 * pi * 1e9), m_p .* sim_vars[:ws] .+ q_p, label="wp line", color=:darkblue)
+    #plot!(p4, sim_vars[:ws] / (2 * pi * 1e9), m_phalf .* sim_vars[:ws] .+ q_phalf, label="wp/2 line", color=:green)
+    plot!(p4, sim_vars[:ws] / (2 * pi * 1e9), m_stopband .* sim_vars[:ws] .+ q_stopband, label="stopband line", color=:darkred)
+
+
+
+    # Plot customization
+    vline!(p1, [params[:phidc]], width=2, style=:dash, color=:black)
+    vline!(p2, [params[:phidc]], width=2, style=:dash, color=:black)
+    vline!(p3, [params[:phidc]], width=2, style=:dash, color=:black)
+
+    hline!(p1, [(sim_vars[:fp]/2)/1e9], width=2, color=:gray, style=:dash, label="")
+    hline!(p1, [((sim_vars[:fp]/2)-1e9)/1e9], width=2, color=:darkblue, label="")
+    hline!(p1, [((sim_vars[:fp]/2)+1e9)/1e9], width=2, color=:darkblue, label="")
+
+    hline!(p2, [(sim_vars[:fp]/2)/1e9], width=2, color=:gray, style=:dash, label="")
+    hline!(p2, [((sim_vars[:fp]/2)-1e9)/1e9], width=2, color=:darkblue, label="")
+    hline!(p2, [((sim_vars[:fp]/2)+1e9)/1e9], width=2, color=:darkblue, label="")
+    
+    hline!(p1, [sim_vars[:wp][1] / (2 * pi * 1e9)], width=2, color=:black)
+    hline!(p2, [sim_vars[:wp][1] / (2 * pi * 1e9)], width=2, color=:black)
+    hline!(p3, [sim_vars[:wp][1] / (2 * pi * 1e9)], width=2, color=:black)    
+
     vline!(p4, [sim_vars[:wp][1] / (2 * pi * 1e9)], width=2, color=:black, label="")
     vline!(p4, [(1 / 2) * sim_vars[:wp][1] / (2 * pi * 1e9)], width=2, style=:dash, color=:gray, label="")
     vline!(p4, [(3 / 2) * sim_vars[:wp][1] / (2 * pi * 1e9)], width=2, style=:dash, color=:gray, label="")
     vline!(p4, [2 * sim_vars[:wp][1] / (2 * pi * 1e9)], width=2, color=:gray,label="")
 
-    wp = 2*pi* round(sim_vars[:fp], digits=-8)
-    wphalf = 2*pi* round(sim_vars[:fp]/2, digits=-8)                                    #Put the nearest wp value included inside ws. The reason of this line is because for computational reason the wp cannot be a value of ws.
 
-    wpIndex = findall(x -> x == wp, sim_vars[:ws])
-    wphalfIndex = findall(x -> x == wphalf, sim_vars[:ws])
-
-    wp=sim_vars[:ws][wpIndex]
-    wphalf=sim_vars[:ws][wphalfIndex]
-
-    #linear relation
-    y1=-outvalsS21PhasephidcSweep[10, phidcIndex] / params[:N]
-    y2=-outvalsS21PhasephidcSweep[1, phidcIndex] / params[:N]
-    x1=sim_vars[:ws][10]
-    x2=sim_vars[:ws][1]
-
-    m = (y1-y2)/(x1-x2)
-    q = y2-m*x2
-
-    plot!(p4, sim_vars[:ws] / (2 * pi * 1e9), m .* sim_vars[:ws] .+ q, label="linear relation", color=:orange)
-
-    #line passing throug wp
-    y1=-outvalsS21PhasephidcSweep[wpIndex[1], phidcIndex] / params[:N]
-    y2=-outvalsS21PhasephidcSweep[1, phidcIndex] / params[:N]
-    x1=sim_vars[:ws][wpIndex[1]]
-    x2=sim_vars[:ws][1]
-
-    m_p = (y1-y2)/(x1-x2)
-    q_p = y2-m_p*x2
-
-    plot!(p4, sim_vars[:ws] / (2 * pi * 1e9), m_p .* sim_vars[:ws] .+ q_p, label="wp line", color=:darkblue)
-
-
-    #line passing throug wp/2 
-    y1=-outvalsS21PhasephidcSweep[wphalfIndex[1], phidcIndex] / params[:N]
-    y2=-outvalsS21PhasephidcSweep[1, phidcIndex] / params[:N]
-    x1=sim_vars[:ws][wphalfIndex[1]]
-    x2=sim_vars[:ws][1]
-
-    m_phalf=(y1-y2)/(x1-x2)
-    q_phalf = y2-m_phalf*x2
-
-    plot!(p4, sim_vars[:ws] / (2 * pi * 1e9), m_phalf .* sim_vars[:ws] .+ q_phalf, label="wp/2 line", color=:darkred)
-
-    return  p1, p2, p3, p4          
-end
-
-
-
-
-function calculation_low_pump_power(outvalsS21PhasephidcSweep, params, sim_vars)
-
-
-    wp = 2*pi* round(sim_vars[:fp], digits=-8)                              #Put the nearest wp value included inside ws. The reason of this line is because for computational reason the wp cannot be a value of ws.
-    wphalf = 2*pi* round(sim_vars[:fp]/2, digits=-8)  
-
-    phidcIndex = findall(x -> x == params[:phidc], sim_vars[:phidcSweep])
-    wpIndex = findall(x -> x == wp, sim_vars[:ws])
-    wphalfIndex = findall(x -> x == wphalf, sim_vars[:ws])
-    
-    wp=sim_vars[:ws][wpIndex]
-    wphalf=sim_vars[:ws][wphalfIndex]
-
-    #linear relation
-    y1=-outvalsS21PhasephidcSweep[10, phidcIndex] / params[:N]
-    y2=-outvalsS21PhasephidcSweep[1, phidcIndex] / params[:N]
-    x1=sim_vars[:ws][10]
-    x2=sim_vars[:ws][1]
-
-    m = (y1-y2)/(x1-x2)
-    q = y2-m*x2
-    
-    
-    #line passing throug wp
-    y1=-outvalsS21PhasephidcSweep[wpIndex[1], phidcIndex] / params[:N]
-    y2=-outvalsS21PhasephidcSweep[1, phidcIndex] / params[:N]
-    x1=sim_vars[:ws][wpIndex[1]]
-    x2=sim_vars[:ws][1]
-
-    m_p = (y1-y2)/(x1-x2)
-    q_p = y2-m_p*x2
-    
-
-    #line passing throug wp/2 
-    y1=-outvalsS21PhasephidcSweep[wphalfIndex[1], phidcIndex] / params[:N]
-    y2=-outvalsS21PhasephidcSweep[1, phidcIndex] / params[:N]
-    x1=sim_vars[:ws][wphalfIndex[1]]
-    x2=sim_vars[:ws][1]
-
-    m_phalf=(y1-y2)/(x1-x2)
-    q_phalf = y2-m_phalf*x2
-
-    alpha_lin=atan(m[1])
-    alpha_wp=atan(m_p[1])
-    alpha_wphalf=atan(m_phalf[1])
-
-    return alpha_wphalf, alpha_wp, alpha_lin
+    return  p1, p2, p3, p4
 
 end
+
+
 
 
 
@@ -267,6 +279,10 @@ end
 
 
 
+
+
+
+
 #------------------------------------------SIMULATION AT FIXED FLUX---------------------------------------------------
 
 
@@ -295,6 +311,12 @@ function simulate_at_fixed_flux(params, sim_vars, circuit, circuitdefs)
         outvalsS22IpSweep[:, k] = sol.linearized.S((0,), 2, (0,), 2, :)
     end
 
+    return outvalsS21IpSweep, outvalsS12IpSweep, outvalsS11IpSweep, outvalsS22IpSweep
+
+end
+
+
+function plot_at_fixed_flux(outvalsS21IpSweep, outvalsS11IpSweep, sim_vars)
 
     # Generate plots-----------------------------------------------------------------------------------------------
     
@@ -339,6 +361,27 @@ function simulate_at_fixed_flux(params, sim_vars, circuit, circuitdefs)
         framestyle=:box
     )
 
+
+    vline!(p1p, [sim_vars[:IpGain] / 1e-6], width=2, color=:black)
+    vline!(p2p, [sim_vars[:IpGain] / 1e-6], width=2, color=:black)
+    hline!(p1p, [sim_vars[:wp][1] / (2 * pi * 1e9)], width=2, color=:black)
+    hline!(p2p, [sim_vars[:wp][1] / (2 * pi * 1e9)], width=2, color=:black)
+
+    hline!(p1p, [(1 / 2) * sim_vars[:wp][1] / (2 * pi * 1e9)], width=2, style=:dash, color=:gray)
+    hline!(p2p, [(1 / 2) * sim_vars[:wp][1] / (2 * pi * 1e9)], width=2, style=:dash, color=:gray)
+    hline!(p1p, [(3 / 2) * sim_vars[:wp][1] / (2 * pi * 1e9)], width=2, style=:dash, color=:gray)
+    hline!(p2p, [(3 / 2) * sim_vars[:wp][1] / (2 * pi * 1e9)], width=2, style=:dash, color=:gray)
+    hline!(p1p, [2 * sim_vars[:wp][1] / (2 * pi * 1e9)], width=2, color=:gray)
+    hline!(p2p, [2 * sim_vars[:wp][1] / (2 * pi * 1e9)], width=2, color=:gray)
+
+    vline!(p5, [sim_vars[:wp][1] / (2 * pi * 1e9)], width=2, color=:black)
+    vline!(p5, [(1 / 2) * sim_vars[:wp][1] / (2 * pi * 1e9)], width=2, style=:dash, color=:gray, label="")
+    vline!(p5, [(3 / 2) * sim_vars[:wp][1] / (2 * pi * 1e9)], width=2, style=:dash, color=:gray, label="")
+    vline!(p5, [2 * sim_vars[:wp][1] / (2 * pi * 1e9)], width=2, color=:gray,label="")
+    vline!(p5, [((sim_vars[:fp]/2)-1e9)/1e9], width=2, color=:darkblue, label="")
+    vline!(p5, [((sim_vars[:fp]/2)+1e9)/1e9], width=2, color=:darkblue, label="")
+
+
     return p1p, p2p, p5
 
 end
@@ -349,36 +392,6 @@ end
 
 function final_report(params, sim_vars, fixed_params, p1, p2, p3, p4, p1p, p2p, p5)
 
-    
-    # Plot customization
-    vline!(p1, [params[:phidc]], width=2, style=:dash, color=:black)
-    vline!(p2, [params[:phidc]], width=2, style=:dash, color=:black)
-    vline!(p3, [params[:phidc]], width=2, style=:dash, color=:black)
-
-    hline!(p1, [sim_vars[:wp][1] / (2 * pi * 1e9)], width=2, color=:black)
-    hline!(p2, [sim_vars[:wp][1] / (2 * pi * 1e9)], width=2, color=:black)
-    hline!(p3, [sim_vars[:wp][1] / (2 * pi * 1e9)], width=2, color=:black)
-    hline!(p1p, [sim_vars[:wp][1] / (2 * pi * 1e9)], width=2, color=:black)
-    hline!(p2p, [sim_vars[:wp][1] / (2 * pi * 1e9)], width=2, color=:black)
-    
-
-    vline!(p4, [sim_vars[:wp][1] / (2 * pi * 1e9)], width=2, color=:black, label="")
-    vline!(p4, [(1 / 2) * sim_vars[:wp][1] / (2 * pi * 1e9)], width=2, style=:dash, color=:gray, label="")
-    vline!(p4, [(3 / 2) * sim_vars[:wp][1] / (2 * pi * 1e9)], width=2, style=:dash, color=:gray, label="")
-    vline!(p4, [2 * sim_vars[:wp][1] / (2 * pi * 1e9)], width=2, color=:gray,label="")
-
-
-    vline!(p1p, [sim_vars[:IpGain] / 1e-6], width=2, color=:black)
-    vline!(p2p, [sim_vars[:IpGain] / 1e-6], width=2, color=:black)
-
-    hline!(p1p, [(1 / 2) * sim_vars[:wp][1] / (2 * pi * 1e9)], width=2, style=:dash, color=:gray)
-    hline!(p2p, [(1 / 2) * sim_vars[:wp][1] / (2 * pi * 1e9)], width=2, style=:dash, color=:gray)
-    hline!(p1p, [(3 / 2) * sim_vars[:wp][1] / (2 * pi * 1e9)], width=2, style=:dash, color=:gray)
-    hline!(p2p, [(3 / 2) * sim_vars[:wp][1] / (2 * pi * 1e9)], width=2, style=:dash, color=:gray)
-    hline!(p1p, [2 * sim_vars[:wp][1] / (2 * pi * 1e9)], width=2, color=:gray)
-    hline!(p2p, [2 * sim_vars[:wp][1] / (2 * pi * 1e9)], width=2, color=:gray)
-
-    vline!(p5, [sim_vars[:wp][1] / (2 * pi * 1e9)], width=2, color=:black)
 
     value_fp = @sprintf("%.2f", sim_vars[:wp][1] / (2 * pi * 1e9))
     value_IpGain = @sprintf("%.4f", sim_vars[:IpGain] / (1e-6))
@@ -432,10 +445,10 @@ end
 function simulate_and_plot(params_temp, sim_vars, fixed_params, circuit_temp, circuitdefs_temp)
 
     S21, _, S11, _, S21phase = simulate_low_pump_power(sim_vars, circuit_temp, circuitdefs_temp)
-
     p1,p2,p3,p4 = plot_low_pump_power(S21, S11, S21phase, params_temp, sim_vars)
 
-    p1p,p2p,p5 = simulate_at_fixed_flux(params_temp, sim_vars, circuit_temp, circuitdefs_temp)
+    S21, _, S11, _ = simulate_at_fixed_flux(params_temp, sim_vars, circuit_temp, circuitdefs_temp)
+    p1p, p2p, p5 = plot_at_fixed_flux(S21, S11, sim_vars)
 
     p_temp = final_report(params_temp, sim_vars, fixed_params, p1, p2, p3, p4, p1p, p2p, p5)
 

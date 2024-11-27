@@ -144,7 +144,8 @@ sim_params_space = Dict(
     :LloadingCell => [1.5], #collect(1:0.25:2),                           
     :CgloadingCell => [1], #collect(0.5:0.25:1.5),                             
     :criticalCurrentDensity => [0.4], #collect(0.1:0.1:0.9),                
-    :CgDielectricThichness => collect(80:1:100)                   
+    :CgDielectricThichness => collect(50:1:140),     
+    :phidc => [0.38]   
 )
 
 
@@ -168,6 +169,8 @@ function cost(vec) #vector passing
     println("Dictionary update: ", params_temp)
     #println("flux value: ", params_temp[:phidc], " for alpha: ", params_temp[:alphaSNAIL])
 
+    println("Cg DIELECTRIC THICKNESS: ", params_temp[:CgDielectricThichness])
+
     circuit_temp, circuitdefs_temp = create_circuit(JJSmallStd, JJBigStd, params_temp, fixed_params)
     println("Circuit created")
 
@@ -177,7 +180,7 @@ function cost(vec) #vector passing
     maxS11value = maxS11val_BandFreq_FixFlux(S11, params_temp, sim_vars)
     println("Maximum value of S11: ", maxS11value)
 
-    #alpha_wphalf, alpha_wp, alpha_lin  = calculation_low_pump_power(S21phase, params_temp, sim_vars)
+    alpha_wphalf, alpha_wp, alpha_lin, alpha_try  = calculation_low_pump_power(S21phase, params_temp, sim_vars)
 
     println("Metric calculated")
 
@@ -185,16 +188,22 @@ function cost(vec) #vector passing
     #delta_alpha_wphalf=abs(alpha_wphalf - alpha_lin)
 
     #metric_angles = abs(delta_alpha_wp-delta_alpha_wphalf) * (1/((abs(delta_alpha_wp*delta_alpha_wphalf))^(1/2)))
-    #println("   a. Angles contribute: ", metric_angles)
+    metric_angles = abs(alpha_try)*1e12
 
-    metric_impedance = (20/abs(maxS11value))
-    println("   b. Impedance matching contibute: ", metric_impedance)
+    println("   a. Angles contribute: ", metric_angles)
 
-    metric = metric_impedance #+ metric_angles 
+    #metric_impedance = (20/abs(maxS11value))
+    #println("   b. Impedance matching contibute: ", metric_impedance)
+
+    metric = metric_angles #metric_impedance +  
     println("Final value: ", metric)
+
+
+    p_temp = simulate_and_plot(params_temp, sim_vars, fixed_params, circuit_temp, circuitdefs_temp)
+    display(p_temp)
+
     println("-----------------------------------------------------")
-
-
+  
     return metric
     #p_temp = simulate_and_plot(params_temp, sim_vars, fixed_params, circuit_temp, circuitdefs_temp)
     #display(p_temp)
@@ -289,15 +298,15 @@ println("-----------------------------------------------------")
 println("-----------------------------------------------------")
 println("------------------SIMULATION RESULTS-----------------")
 println("-----------------------------------------------------")
-println("-----------------------------------------------------")
 
 
 cost(optimal_vec)
 
 println("Optimal Parameters: $optimal_params")
 println("Optimal Metric: $optimal_metric")
-
-
+println("")
+println("Cg DIELECTRIC THICKNESS: ", optimal_params[:CgDielectricThichness])
+println("")
 
 circuit_temp, circuitdefs_temp = create_circuit(JJSmallStd, JJBigStd, optimal_params, fixed_params)
 
@@ -306,11 +315,11 @@ S21, _, S11, _, S21phase = simulate_low_pump_power(sim_vars, circuit_temp, circu
 maxS11 = maxS11val_BandFreq_FixFlux(S11, optimal_params, sim_vars)
 println("Maximum S11: ", maxS11)
 
-println("Cg Dielectric Thickness: ", optimal_params[:CgDielectricThichness])
-
 p1,p2,p3,p4 = plot_low_pump_power(S21, S11, S21phase, optimal_params, sim_vars)
-hline!(p1, [(6)], width=2, color=:black, label="")
-hline!(p1, [(8)], width=2, color=:black, label="")
+
+hline!(p1, [(sim_vars[:fp]/2)/1e9], width=2, color=:gray, style=:dash, label="")
+hline!(p1, [((sim_vars[:fp]/2)-1e9)/1e9], width=2, color=:black, label="")
+hline!(p1, [((sim_vars[:fp]/2)+1e9)/1e9], width=2, color=:black, label="")
 vline!(p1, [(optimal_params[:phidc])], width=2, color=:black, label="")
 p=plot(p1,p4,layout=(2,1), size=(600, 700))
 display(p)
