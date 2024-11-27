@@ -15,3 +15,5 @@ Here’s a summary of the key files in the repository:
 - **`snail_circuit.jl`**: A function to generate and simulate the Superconducting Nonlinear Asymmetric Inductive Element (SNAIL) circuit, a key component in many quantum circuit designs.
 
 - **`utils.jl`**: Contains utility functions used throughout the project, such as data handling, custom solvers, or visualization helpers.
+
+- **`flux_curve.txt`**: A file that maps the values of the alpha parameter of the SNAIL to the corresponding flux value to achieve the best theoretical three-wave mixing.
