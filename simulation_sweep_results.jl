@@ -115,7 +115,6 @@ sim_vars = Dict(
     :fs => (3:0.1:30.0) * 1e9,
     :fp =>  13.301 * 1e9,
     :Ip =>  0.00001e-6,
-    :IpGain => 0.25e-6,
     :IpSweep => (0.1:0.05:0.3)*1e-6, #0.8*1e-6 iniziale
     :phidcSweep => (0:0.01:0.5),
     :Npumpharmonics => (8,),
@@ -140,7 +139,7 @@ sim_params_space = Dict(
     :loadingpitch => [3],
     :nMacrocells => [50],   #20                     
     :smallJunctionArea => [0.7], #collect(0.5:0.25:1.5),                        
-    :alphaSNAIL => [0.16], # collect(0.1:0.025:0.2),                    
+    :alphaSNAIL => collect(0.1:0.025:0.2),                    
     :LloadingCell => [1.5], #collect(1:0.25:2),                           
     :CgloadingCell => [1], #collect(0.5:0.25:1.5),                             
     :criticalCurrentDensity => [0.4], #collect(0.1:0.1:0.9),                
@@ -180,7 +179,7 @@ function cost(vec) #vector passing
     maxS11value = maxS11val_BandFreq_FixFlux(S11, params_temp, sim_vars)
     println("Maximum value of S11: ", maxS11value)
 
-    alpha_wphalf, alpha_wp, alpha_lin, alpha_try  = calculation_low_pump_power(S21phase, params_temp, sim_vars)
+    alpha_wphalf, alpha_wp, alpha_lin, alpha_stopband  = calculation_metric_lines(S21phase, params_temp, sim_vars)
 
     println("Metric calculated")
 
@@ -188,19 +187,22 @@ function cost(vec) #vector passing
     #delta_alpha_wphalf=abs(alpha_wphalf - alpha_lin)
 
     #metric_angles = abs(delta_alpha_wp-delta_alpha_wphalf) * (1/((abs(delta_alpha_wp*delta_alpha_wphalf))^(1/2)))
-    metric_angles = abs(alpha_try)*1e12
+    metric_angles_stopband = abs(alpha_stopband)*1e12
+    println("   a. Angle contribute stopband: ", metric_angles_stopband)
 
-    println("   a. Angles contribute: ", metric_angles)
+    metric_angles_nonlin = 1/(1e12*abs(alpha_lin - alpha_wp))
+    println("   b. Angles contribute non-linarity: ", metric_angles_nonlin)
 
-    #metric_impedance = (20/abs(maxS11value))
-    #println("   b. Impedance matching contibute: ", metric_impedance)
+    metric_impedance = (20/abs(maxS11value))
+    println("   c. Impedance matching contibute: ", metric_impedance)
 
-    metric = metric_angles #metric_impedance +  
+    metric = metric_angles_stopband + metric_angles_nonlin + metric_impedance   
     println("Final value: ", metric)
 
+    p1,_,_,p4 = plot_low_pump_power(S21, S11, S21phase, params_temp, sim_vars)
+    p=plot(p1,p4,layout=(2,1), size=(600, 700))
+    display(p)
 
-    p_temp = simulate_and_plot(params_temp, sim_vars, fixed_params, circuit_temp, circuitdefs_temp)
-    display(p_temp)
 
     println("-----------------------------------------------------")
   
@@ -261,8 +263,8 @@ result = surrogate_optimize(
     ub,
     my_k_SRBFN,
     RandomSample(),
-    maxiters = 5,           # Number of interactions. Incresing maxiters: Leads to a longer optimization process with potentially better solutions but at the cost of more time.
-    num_new_samples = 5     # Number of point generated for every single interaction. Incresing num_new_samples: Allows each iteration to consider a broader range of candidate points, 
+    maxiters = 7,           # Number of interactions. Incresing maxiters: Leads to a longer optimization process with potentially better solutions but at the cost of more time.
+    num_new_samples = 7     # Number of point generated for every single interaction. Incresing num_new_samples: Allows each iteration to consider a broader range of candidate points, 
                             # improving the chance of finding a good solution early but also increasing the computational cost per iteration.
 )
 
@@ -315,14 +317,12 @@ S21, _, S11, _, S21phase = simulate_low_pump_power(sim_vars, circuit_temp, circu
 maxS11 = maxS11val_BandFreq_FixFlux(S11, optimal_params, sim_vars)
 println("Maximum S11: ", maxS11)
 
+
 p1,p2,p3,p4 = plot_low_pump_power(S21, S11, S21phase, optimal_params, sim_vars)
 
-hline!(p1, [(sim_vars[:fp]/2)/1e9], width=2, color=:gray, style=:dash, label="")
-hline!(p1, [((sim_vars[:fp]/2)-1e9)/1e9], width=2, color=:black, label="")
-hline!(p1, [((sim_vars[:fp]/2)+1e9)/1e9], width=2, color=:black, label="")
-vline!(p1, [(optimal_params[:phidc])], width=2, color=:black, label="")
 p=plot(p1,p4,layout=(2,1), size=(600, 700))
 display(p)
+
 
 p_temp = simulate_and_plot(optimal_params, sim_vars, fixed_params, circuit_temp, circuitdefs_temp)
 

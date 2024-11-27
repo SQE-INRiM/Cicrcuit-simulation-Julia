@@ -83,12 +83,13 @@ function calculation_lines_low_pump_power(outvalsS21PhasephidcSweep, params, sim
 
 
     #line passing throug wp and wp-n 
-    y1=-outvalsS21PhasephidcSweep[wpIndex[1], phidcIndex] / params[:N]
-    y2=-outvalsS21PhasephidcSweep[wpIndex[1]-15, phidcIndex] / params[:N]
-    x1=sim_vars[:ws][wpIndex[1]]
-    x2=sim_vars[:ws][wpIndex[1]-15]
+    y1=-outvalsS21PhasephidcSweep[wpIndex[1]-4, phidcIndex] / params[:N]
+    y2=-outvalsS21PhasephidcSweep[wpIndex[1]-17, phidcIndex] / params[:N]
+    x1=sim_vars[:ws][wpIndex[1]-4]
+    x2=sim_vars[:ws][wpIndex[1]-17]
+    
     m_stopband=(y1-y2)/(x1-x2)
-    q_stopband = y2-m_stopband*x2
+    q_stopband = y2-m_stopband*x2   
 
 
     return m, q, m_p, q_p, m_phalf, q_phalf, m_stopband, q_stopband
@@ -179,8 +180,8 @@ function plot_low_pump_power(outvalsS21phidcSweep, outvalsS11phidcSweep, outvals
 
 
 
-    #plot!(p4, sim_vars[:ws] / (2 * pi * 1e9), m .* sim_vars[:ws] .+ q, label="linear relation", color=:orange)
-    #plot!(p4, sim_vars[:ws] / (2 * pi * 1e9), m_p .* sim_vars[:ws] .+ q_p, label="wp line", color=:darkblue)
+    plot!(p4, sim_vars[:ws] / (2 * pi * 1e9), m .* sim_vars[:ws] .+ q, label="linear relation", color=:orange)
+    plot!(p4, sim_vars[:ws] / (2 * pi * 1e9), m_p .* sim_vars[:ws] .+ q_p, label="wp line", color=:darkblue)
     #plot!(p4, sim_vars[:ws] / (2 * pi * 1e9), m_phalf .* sim_vars[:ws] .+ q_phalf, label="wp/2 line", color=:green)
     plot!(p4, sim_vars[:ws] / (2 * pi * 1e9), m_stopband .* sim_vars[:ws] .+ q_stopband, label="stopband line", color=:darkred)
 
@@ -191,17 +192,26 @@ function plot_low_pump_power(outvalsS21phidcSweep, outvalsS11phidcSweep, outvals
     vline!(p2, [params[:phidc]], width=2, style=:dash, color=:black)
     vline!(p3, [params[:phidc]], width=2, style=:dash, color=:black)
 
-    hline!(p1, [(sim_vars[:fp]/2)/1e9], width=2, color=:gray, style=:dash, label="")
+    hline!(p1, [(sim_vars[:fp]/2)/1e9], width=1, color=:gray, style=:dash, label="")
     hline!(p1, [((sim_vars[:fp]/2)-1e9)/1e9], width=2, color=:darkblue, label="")
     hline!(p1, [((sim_vars[:fp]/2)+1e9)/1e9], width=2, color=:darkblue, label="")
 
-    hline!(p2, [(sim_vars[:fp]/2)/1e9], width=2, color=:gray, style=:dash, label="")
+    hline!(p2, [(sim_vars[:fp]/2)/1e9], width=1, color=:gray, style=:dash, label="")
     hline!(p2, [((sim_vars[:fp]/2)-1e9)/1e9], width=2, color=:darkblue, label="")
     hline!(p2, [((sim_vars[:fp]/2)+1e9)/1e9], width=2, color=:darkblue, label="")
     
     hline!(p1, [sim_vars[:wp][1] / (2 * pi * 1e9)], width=2, color=:black)
     hline!(p2, [sim_vars[:wp][1] / (2 * pi * 1e9)], width=2, color=:black)
-    hline!(p3, [sim_vars[:wp][1] / (2 * pi * 1e9)], width=2, color=:black)    
+    hline!(p3, [sim_vars[:wp][1] / (2 * pi * 1e9)], width=2, color=:black)   
+    
+    
+    hline!(p1, [(1 / 2) * sim_vars[:wp][1] / (2 * pi * 1e9)], width=1, style=:dash, color=:gray)
+    hline!(p2, [(1 / 2) * sim_vars[:wp][1] / (2 * pi * 1e9)], width=1, style=:dash, color=:gray)
+    hline!(p1, [(3 / 2) * sim_vars[:wp][1] / (2 * pi * 1e9)], width=1, style=:dash, color=:gray)
+    hline!(p2, [(3 / 2) * sim_vars[:wp][1] / (2 * pi * 1e9)], width=1, style=:dash, color=:gray)
+    hline!(p1, [2 * sim_vars[:wp][1] / (2 * pi * 1e9)], width=1, color=:gray)
+    hline!(p2, [2 * sim_vars[:wp][1] / (2 * pi * 1e9)], width=1, color=:gray)
+
 
     vline!(p4, [sim_vars[:wp][1] / (2 * pi * 1e9)], width=2, color=:black, label="")
     vline!(p4, [(1 / 2) * sim_vars[:wp][1] / (2 * pi * 1e9)], width=2, style=:dash, color=:gray, label="")
@@ -248,16 +258,16 @@ function find_flux_from_alpha(params_temp)
 end    
 
 
-function maxS11val_BandFreq_FixFlux(S11, params_temp, sim_vars)
+function maxS11val_BandFreq_FixFlux(outvalsS11phidcSweep, params_temp, sim_vars)
     
-    S11 = 10 * log10.(abs2.(S11))
+    S11 = 10 * log10.(abs2.(outvalsS11phidcSweep))
 
     # Find frequency range (band is between f = (6, 8) GHz with fp/2=7 GHz) 
     fphalf = round(sim_vars[:fp]/2, digits=-8)
     w_lb = 2*pi*((fphalf)-1e9)
     w_ub = 2*pi*((fphalf)+1e9)
-    w_lb_index = findall(x -> x == w_lb, sim_vars[:ws])
-    w_ub_index = findall(x -> x == w_ub, sim_vars[:ws])
+    w_lb_index = argmin(abs.(sim_vars[:ws] .- w_lb))
+    w_ub_index = argmin(abs.(sim_vars[:ws] .- w_ub))
 
     #println("Flux value: ", params_temp[:phidc])
     flux_index = findall(x -> x == params_temp[:phidc], sim_vars[:phidcSweep])
@@ -266,7 +276,7 @@ function maxS11val_BandFreq_FixFlux(S11, params_temp, sim_vars)
 
     # Finding a vector of S11 value in the frequency band at the best flux value
 
-    S11_new=S11[w_lb_index[1]:w_ub_index[1],flux_index[1]]
+    S11_new=S11[w_lb_index:w_ub_index,flux_index[1]]
     #println(S11_new)
     max_value=maximum(S11_new)
     #println(max_value)
@@ -274,10 +284,6 @@ function maxS11val_BandFreq_FixFlux(S11, params_temp, sim_vars)
     return max_value
 
 end
-
-
-
-
 
 
 
@@ -316,6 +322,45 @@ function simulate_at_fixed_flux(params, sim_vars, circuit, circuitdefs)
 end
 
 
+function find_best_IpGain(outvalsS21IpSweep, sim_vars)
+
+    S21 = 10 * log10.(abs2.(outvalsS21IpSweep))
+
+    fphalf = round(sim_vars[:fp]/2, digits=-8)
+    w_lb = 2*pi*((fphalf)-1e9)
+    w_ub = 2*pi*((fphalf)+1e9)
+    w_lb_index = argmin(abs.(sim_vars[:ws] .- w_lb))
+    w_ub_index = argmin(abs.(sim_vars[:ws] .- w_ub))
+
+    mean_ref = -30
+    IpGainBest = 0
+    best_index = 0
+
+    for (index, Ip) in enumerate(sim_vars[:IpSweep])
+        
+        mean_temp = mean(S21[w_lb_index:w_ub_index, index])
+        #println("mean single: ", mean_temp)
+        #println("Ip: ", Ip)
+        #println("IpIdx: ", index)
+
+        if mean_temp > mean_ref
+
+            mean_ref = mean_temp
+            #println("mean best: ", mean_ref)
+            IpGainBest = Ip
+            #println("IpGainBest: ", IpGainBest)
+            best_index = index
+            #println("IpGainBestIdx: ", best_index)
+        
+        end
+    end
+
+    return IpGainBest, best_index
+
+end
+
+
+
 function plot_at_fixed_flux(outvalsS21IpSweep, outvalsS11IpSweep, sim_vars)
 
     # Generate plots-----------------------------------------------------------------------------------------------
@@ -348,7 +393,8 @@ function plot_at_fixed_flux(outvalsS21IpSweep, outvalsS11IpSweep, sim_vars)
         colorbar=true
     )
 
-    IpIndex = findall(x -> x == sim_vars[:IpGain], sim_vars[:IpSweep])
+    IpGain, IpIndex = find_best_IpGain(outvalsS21IpSweep, sim_vars)
+    sim_vars[:IpGain]=IpGain
 
     p5 = plot(
         sim_vars[:ws] / (2 * pi * 1e9),
@@ -388,7 +434,8 @@ end
 
 
 
-#----------------------------------------------COSMESI FINALE-----------------------------------------------------------
+
+#----------------------------------------------FINAL REPORT-----------------------------------------------------------
 
 function final_report(params, sim_vars, fixed_params, p1, p2, p3, p4, p1p, p2p, p5)
 
@@ -438,6 +485,7 @@ function final_report(params, sim_vars, fixed_params, p1, p2, p3, p4, p1p, p2p, 
 
 
 end
+
 
 
 #-----------------------------GENERAL FUNCTION FOR SIMULATION AND PLOT--------------------------------------
