@@ -10,6 +10,8 @@ using ColorTypes
 using Symbolics
 using Distributions
 using Dates
+using StatsBase
+using SavitzkyGolay
 
 using Surrogates
 using LinearAlgebra
@@ -131,27 +133,61 @@ sim_vars[:wp] = (2 * pi * sim_vars[:fp],)
 
 #PARAMETER SCAN
 
-JJSmallStd = 0        #Tra 0.05 e 0.2             # =0 -> perfect fab , 0.1 -> 10% spread
-JJBigStd = 0               #Tra 0.05 e 0.2             # =0 -> perfect fab , 0.1 -> 10% spread
+JJSmallStd = 0.1        #Tra 0.05 e 0.2             # =0 -> perfect fab , 0.1 -> 10% spread
+JJBigStd = 0.1               #Tra 0.05 e 0.2             # =0 -> perfect fab , 0.1 -> 10% spread
 
 # Define the parameter arrays directly in the dictionary
+
+# Parameter space near the benchmark
 sim_params_space = Dict(
     :loadingpitch => [3],
     :nMacrocells => [50],   #20                     
-    :smallJunctionArea => [0.7], #collect(0.5:0.25:1.5),                        
-    :alphaSNAIL => collect(0.1:0.025:0.2),                    
-    :LloadingCell => [1.5], #collect(1:0.25:2),                           
-    :CgloadingCell => [1], #collect(0.5:0.25:1.5),                             
+    :smallJunctionArea =>  collect(0.5:0.25:1.5), # [0.7]                        
+    :alphaSNAIL => collect(0.1:0.025:0.2),  #0.16                  
+    :LloadingCell => collect(1:0.25:2),   #[1.5], #                        
+    :CgloadingCell => collect(0.5:0.25:1.5),  #[1], #                           
     :criticalCurrentDensity => [0.4], #collect(0.1:0.1:0.9),                
-    :CgDielectricThichness => collect(50:1:140),     
-    :phidc => [0.38]   
+    :CgDielectricThichness => collect(50:1:140)     
+ 
 )
+"""
 
+# Parameter space near to find gain 
 
+sim_params_space = Dict(
+    :loadingpitch => [3],
+    :nMacrocells => [50],   #20                     
+    :smallJunctionArea =>  collect(2:0.5:5), # [0.7]                        
+    :alphaSNAIL => collect(0.1:0.05:0.25),  #0.16                  
+    :LloadingCell => collect(1:0.5:5),   #[1.5], #                        
+    :CgloadingCell => collect(1:0.5:5),  #[1], #                           
+    :criticalCurrentDensity => [0.4], #collect(0.1:0.1:0.9),                
+    :CgDielectricThichness => collect(10:1:70)     
+ 
+)
+"""
 
 #-----------------------------------------------------------------------------------
 #-----------------------------STARTING SIMULATION-----------------------------------
 #-----------------------------------------------------------------------------------
+
+"""
+First metric
+
+#metric_angles = abs(delta_alpha_wp-delta_alpha_wphalf) * (1/((abs(delta_alpha_wp*delta_alpha_wphalf))^(1/2)))
+metric_angles_stopband = (abs(alpha_stopband)*2.5)*1e12
+println("   a. Angle contribute stopband: ", metric_angles_stopband)
+
+metric_angles_nonlin = 1/(sqrt(abs(alpha_lin - alpha_wp))*1e6)
+println("   b. Angles contribute non-linarity: ", metric_angles_nonlin)
+
+metric_impedance = (20/abs(maxS11value))
+println("   c. Impedance matching contibute: ", metric_impedance)
+
+metric = metric_angles_stopband + metric_angles_nonlin + metric_impedance   
+println("Final value: ", metric)
+"""
+
 
 
 
@@ -159,16 +195,16 @@ sim_params_space = Dict(
 function cost(vec) #vector passing
     
     println("-----------------------------------------------------")
-    println("Vector: ", vec)
+    #println("Vector: ", vec)
 
     params_temp = vector_to_param(vec, keys(sim_params_space))
     #println("Dictionary: ", params_temp)
 
     params_temp = add_parameters(params_temp)
     println("Dictionary update: ", params_temp)
-    #println("flux value: ", params_temp[:phidc], " for alpha: ", params_temp[:alphaSNAIL])
+    println("flux value: ", params_temp[:phidc], " for alpha: ", params_temp[:alphaSNAIL])
 
-    println("Cg DIELECTRIC THICKNESS: ", params_temp[:CgDielectricThichness])
+    #println("Cg DIELECTRIC THICKNESS: ", params_temp[:CgDielectricThichness])
 
     circuit_temp, circuitdefs_temp = create_circuit(JJSmallStd, JJBigStd, params_temp, fixed_params)
     println("Circuit created")
@@ -179,7 +215,7 @@ function cost(vec) #vector passing
     maxS11value = maxS11val_BandFreq_FixFlux(S11, params_temp, sim_vars)
     println("Maximum value of S11: ", maxS11value)
 
-    alpha_wphalf, alpha_wp, alpha_lin, alpha_stopband  = calculation_metric_lines(S21phase, params_temp, sim_vars)
+    alpha_wphalf, alpha_wp, alpha_lin, alpha_stopband, alpha_nonlin  = calculation_metric_lines(S21phase, params_temp, sim_vars)
 
     println("Metric calculated")
 
@@ -187,10 +223,10 @@ function cost(vec) #vector passing
     #delta_alpha_wphalf=abs(alpha_wphalf - alpha_lin)
 
     #metric_angles = abs(delta_alpha_wp-delta_alpha_wphalf) * (1/((abs(delta_alpha_wp*delta_alpha_wphalf))^(1/2)))
-    metric_angles_stopband = abs(alpha_stopband)*1e12
+    metric_angles_stopband = (abs(alpha_stopband)*2.5)*1e12
     println("   a. Angle contribute stopband: ", metric_angles_stopband)
 
-    metric_angles_nonlin = 1/(1e12*abs(alpha_lin - alpha_wp))
+    metric_angles_nonlin = 0# abs(alpha_nonlin - alpha_wp)*1e12
     println("   b. Angles contribute non-linarity: ", metric_angles_nonlin)
 
     metric_impedance = (20/abs(maxS11value))
@@ -199,8 +235,10 @@ function cost(vec) #vector passing
     metric = metric_angles_stopband + metric_angles_nonlin + metric_impedance   
     println("Final value: ", metric)
 
-    p1,_,_,p4 = plot_low_pump_power(S21, S11, S21phase, params_temp, sim_vars)
-    p=plot(p1,p4,layout=(2,1), size=(600, 700))
+    #p1,_,_,p4 = plot_low_pump_power(S21, S11, S21phase, params_temp, sim_vars)
+    #p=plot(p1,p4,layout=(2,1), size=(600, 700))
+    
+    p = plot_derivative_low_pump(S21phase, sim_vars, params)
     display(p)
 
 
@@ -214,8 +252,10 @@ end
 
 
 
-
 println("STARTING AT: ", (Dates.now()))
+start_time = time()
+
+
 #Return upper and lower boundaries
 bounds = [extrema(v) for v in values(sim_params_space)]
 println("Bounds: ", bounds)
@@ -227,9 +267,9 @@ println("Upper bounds:", ub)
 
 
 
-n_initial_points = 5
+n_initial_points = 10
 initial_points = generate_n_initial_points(n_initial_points, sim_params_space)
-println("Initial points: ", initial_points)
+#println("Initial points: ", initial_points)
 
 for p in initial_points
     println("Single point: ", p)
@@ -254,8 +294,6 @@ println("-----------------------------------------------------")
 
 # Perform Gaussian Process optimization
 
-start_time = time()
-
 result = surrogate_optimize(
     cost,
     SRBF(),
@@ -263,8 +301,8 @@ result = surrogate_optimize(
     ub,
     my_k_SRBFN,
     RandomSample(),
-    maxiters = 7,           # Number of interactions. Incresing maxiters: Leads to a longer optimization process with potentially better solutions but at the cost of more time.
-    num_new_samples = 7     # Number of point generated for every single interaction. Incresing num_new_samples: Allows each iteration to consider a broader range of candidate points, 
+    maxiters = 5,           # Number of interactions. Incresing maxiters: Leads to a longer optimization process with potentially better solutions but at the cost of more time.
+    num_new_samples = 5     # Number of point generated for every single interaction. Incresing num_new_samples: Allows each iteration to consider a broader range of candidate points, 
                             # improving the chance of finding a good solution early but also increasing the computational cost per iteration.
 )
 
@@ -306,9 +344,7 @@ cost(optimal_vec)
 
 println("Optimal Parameters: $optimal_params")
 println("Optimal Metric: $optimal_metric")
-println("")
-println("Cg DIELECTRIC THICKNESS: ", optimal_params[:CgDielectricThichness])
-println("")
+#println("Cg DIELECTRIC THICKNESS: ", optimal_params[:CgDielectricThichness])
 
 circuit_temp, circuitdefs_temp = create_circuit(JJSmallStd, JJBigStd, optimal_params, fixed_params)
 

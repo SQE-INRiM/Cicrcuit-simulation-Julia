@@ -81,36 +81,229 @@ function calculation_lines_low_pump_power(outvalsS21PhasephidcSweep, params, sim
     q_phalf = y2-m_phalf*x2
 
 
+    # fit stopband line
 
-    #line passing throug wp and wp-n 
-    y1=-outvalsS21PhasephidcSweep[wpIndex[1]-4, phidcIndex] / params[:N]
-    y2=-outvalsS21PhasephidcSweep[wpIndex[1]-17, phidcIndex] / params[:N]
-    x1=sim_vars[:ws][wpIndex[1]-4]
-    x2=sim_vars[:ws][wpIndex[1]-17]
+    y_stopband = -outvalsS21PhasephidcSweep[wpIndex[1]-10:wpIndex[1]-2, phidcIndex] / params[:N]
+    x_stopband = sim_vars[:ws][wpIndex[1]-10:wpIndex[1]-2]
+
+
+    n = length(x_stopband)
+    X = [ones(n) x_stopband] # Add a column of ones for the intercept
+
+    beta = X \ y_stopband # Solves for [intercept, slope]
+
+    q_stopband = beta[1]
+    m_stopband = beta[2]
+
+
+
+    # fit after wp
+
+    y_nonlin = -outvalsS21PhasephidcSweep[wpIndex[1]+3:wpIndex[1]+17, phidcIndex] / params[:N]
+    x_nonlin = sim_vars[:ws][wpIndex[1]+3:wpIndex[1]+17]
+
+
+    n = length(x_nonlin)
+    X = [ones(n) x_nonlin] # Add a column of ones for the intercept
+
+    beta = X \ y_nonlin # Solves for [intercept, slope]
+
+    q_nonlin = beta[1]
+    m_nonlin = beta[2]
+
     
-    m_stopband=(y1-y2)/(x1-x2)
-    q_stopband = y2-m_stopband*x2   
-
-
-    return m, q, m_p, q_p, m_phalf, q_phalf, m_stopband, q_stopband
+    return m, q, m_p, q_p, m_phalf, q_phalf, m_stopband, q_stopband, m_nonlin, q_nonlin
 
 end
 
 function calculation_metric_lines(outvalsS21PhasephidcSweep, params, sim_vars)
 
-    m, _, m_p, _, m_phalf, _, m_stopband, _ = calculation_lines_low_pump_power(outvalsS21PhasephidcSweep, params, sim_vars)
+    m, _, m_p, _, m_phalf, _, m_stopband, _, m_nonlin = calculation_lines_low_pump_power(outvalsS21PhasephidcSweep, params, sim_vars)
 
     alpha_lin=atan(m[1])
     alpha_wp=atan(m_p[1])
     alpha_wphalf=atan(m_phalf[1])
     alpha_stopband =atan(m_stopband[1])
+    alpha_nonlin=atan(m_nonlin[1])
 
-    return alpha_wphalf, alpha_wp, alpha_lin, alpha_stopband
+    return alpha_wphalf, alpha_wp, alpha_lin, alpha_stopband, alpha_nonlin
 
 end
 
 
 
+function plot_derivative_low_pump(S21phase, sim_vars, params)
+
+    phidcIndex = findall(x -> x == params[:phidc], sim_vars[:phidcSweep])
+
+    y=-S21phase[:, phidcIndex] / params[:N]
+    x= sim_vars[:ws] / (2 * pi * 1e9)
+
+    p4 = plot(
+        x,
+        y,
+        xlabel=L"f / GHz",
+        ylabel=L"k / rad \cdot cells^{-1}",
+        title="Dispersion relation",
+        ylim=(0.0, 1.5),
+        legend=true,
+        colorbar=true,
+        label="",
+        framestyle=:box
+    )
+
+    vline!(p4, [sim_vars[:wp][1] / (2 * pi * 1e9)], width=2, color=:black, label="")
+    vline!(p4, [(1 / 2) * sim_vars[:wp][1] / (2 * pi * 1e9)], width=2, style=:dash, color=:gray, label="")
+    vline!(p4, [(3 / 2) * sim_vars[:wp][1] / (2 * pi * 1e9)], width=2, style=:dash, color=:gray, label="")
+    vline!(p4, [2 * sim_vars[:wp][1] / (2 * pi * 1e9)], width=2, color=:gray,label="")
+
+
+    wp = 2*pi* round(sim_vars[:fp], digits=-8)                              #Put the nearest wp value included inside ws. The reason of this line is because for computational reason the wp cannot be a value of ws.
+    wphalf = 2*pi* round(sim_vars[:fp]/2, digits=-8)  
+
+
+    phidcIndex = findall(x -> x == params[:phidc], sim_vars[:phidcSweep])
+    wpIndex = findall(x -> x == wp, sim_vars[:ws])
+    wphalfIndex = findall(x -> x == wphalf, sim_vars[:ws])
+
+    y_stopband = y[wpIndex[1]-10:wpIndex[1]-2]
+    x_stopband = sim_vars[:ws][wpIndex[1]-10:wpIndex[1]-2]
+
+    n = length(x_stopband)
+    X = [ones(n) x_stopband] # Add a column of ones for the intercept
+
+    beta = X \ y_stopband # Solves for [intercept, slope]
+
+    q_stopband = beta[1]
+    m_stopband = beta[2]
+
+    fitted_y = X * beta
+
+    scatter!(p4, x_stopband/(2 * pi * 1e9), y_stopband, label="Data Points")
+    plot!(p4, x_stopband/(2 * pi * 1e9), fitted_y, label="Linear Fit", lw=2)
+    plot!(p4, sim_vars[:ws] / (2 * pi * 1e9), m_stopband .* sim_vars[:ws] .+ q_stopband, label="stopband line", color=:darkred)
+
+
+
+    #---------------------------------------------------------------------------
+
+    window_size = 27 # Must be odd
+    poly_order = 3
+    y_sg = savitzky_golay(y[:,1], window_size, poly_order)    
+
+    p_sg = plot(
+        x,
+        [y_sg.y],
+        xlabel=L"f / GHz",
+        ylabel=L"k / rad \cdot cells^{-1}",
+        title="DR with SavitzkyGolay",
+        ylim=(0.0, 1.5),
+        legend=true,
+        colorbar=true,
+        label="",
+        framestyle=:box
+    )
+
+
+    vline!(p_sg, [sim_vars[:wp][1] / (2 * pi * 1e9)], width=2, color=:black, label="")
+    vline!(p_sg, [(1 / 2) * sim_vars[:wp][1] / (2 * pi * 1e9)], width=2, style=:dash, color=:gray, label="")
+    vline!(p_sg, [(3 / 2) * sim_vars[:wp][1] / (2 * pi * 1e9)], width=2, style=:dash, color=:gray, label="")
+    vline!(p_sg, [2 * sim_vars[:wp][1] / (2 * pi * 1e9)], width=2, color=:gray,label="")
+
+    y_stopband = y_sg.y[wpIndex[1]-10:wpIndex[1]-2]
+    x_stopband = sim_vars[:ws][wpIndex[1]-10:wpIndex[1]-2]
+
+    n = length(x_stopband)
+    X = [ones(n) x_stopband] # Add a column of ones for the intercept
+
+    beta = X \ y_stopband # Solves for [intercept, slope]
+
+    q_stopband = beta[1]
+    m_stopband = beta[2]
+
+    fitted_y = X * beta
+
+    scatter!(p_sg, x_stopband/(2 * pi * 1e9), y_stopband, label="Data Points")
+    plot!(p_sg, x_stopband/(2 * pi * 1e9), fitted_y, label="Linear Fit", lw=2)
+    plot!(p_sg, sim_vars[:ws] / (2 * pi * 1e9), m_stopband .* sim_vars[:ws] .+ q_stopband, label="stopband line", color=:darkred)
+
+    #---------------------------------------------------------------------------
+
+
+    y_der_sg = savitzky_golay(y[:,1], window_size, poly_order, deriv=1)
+    #y_der_sg_rate = savitzky_golay(y[:,1], window_size, poly_order, deriv=1, rate=200/(15-(-5)))
+
+    p_sg_der = plot(
+        x,
+        [y_der_sg.y],
+        xlabel=L"f / GHz",
+        ylabel=L"k / rad \cdot cells^{-1}",
+        title="First derivative DR with SavitzkyGolay",
+        #ylim=(0.0, 1.5),
+        legend=true,
+        colorbar=true,
+        label="",
+        framestyle=:box
+    )
+
+
+    vline!(p_sg_der, [sim_vars[:wp][1] / (2 * pi * 1e9)], width=2, color=:black, label="")
+    vline!(p_sg_der, [(1 / 2) * sim_vars[:wp][1] / (2 * pi * 1e9)], width=2, style=:dash, color=:gray, label="")
+    vline!(p_sg_der, [(3 / 2) * sim_vars[:wp][1] / (2 * pi * 1e9)], width=2, style=:dash, color=:gray, label="")
+    vline!(p_sg_der, [2 * sim_vars[:wp][1] / (2 * pi * 1e9)], width=2, color=:gray,label="")
+
+    #--------------------------------------------------------------------------
+
+    y_der2_sg = savitzky_golay(y[:,1], window_size, poly_order, deriv=2)
+    #y_der_sg_rate = savitzky_golay(y[:,1], window_size, poly_order, deriv=1, rate=200/(15-(-5)))
+
+    p_sg_der2 = plot(
+        x,
+        [y_der2_sg.y],
+        xlabel=L"f / GHz",
+        ylabel=L"k / rad \cdot cells^{-1}",
+        title="Second derivative DR with SavitzkyGolay",
+        #ylim=(0.0, 1.5),
+        legend=true,
+        colorbar=true,
+        label="",
+        framestyle=:box
+    )
+
+    y = y_der2_sg.y
+
+    # Define the ranges for y
+    #range1 = (2, 5)  # Range 1: y in [2, 5]
+    #range2 = (6, 8)  # Range 2: y in [6, 8]
+
+    # Filter the data for each range
+    x_range1 = x[y .>= range1[1] .&& y .<= range1[2]]
+    y_range1 = y[y .>= range1[1] .&& y .<= range1[2]]
+
+    x_range2 = x[y .>= range2[1] .&& y .<= range2[2]]
+    y_range2 = y[y .>= range2[1] .&& y .<= range2[2]]
+
+    # Compute max and min
+    max_y1, max_index1 = findmax(y_range1)
+    max_x1 = x_range1[max_index1]
+
+    min_y2, min_index2 = findmin(y_range2)
+    min_x2 = x_range2[min_index2]
+
+    vline!(p_sg_der2, [sim_vars[:wp][1] / (2 * pi * 1e9)], width=2, color=:black, label="")
+    vline!(p_sg_der2, [(1 / 2) * sim_vars[:wp][1] / (2 * pi * 1e9)], width=2, style=:dash, color=:gray, label="")
+    vline!(p_sg_der2, [(3 / 2) * sim_vars[:wp][1] / (2 * pi * 1e9)], width=2, style=:dash, color=:gray, label="")
+    vline!(p_sg_der2, [2 * sim_vars[:wp][1] / (2 * pi * 1e9)], width=2, color=:gray,label="")
+
+
+
+    #---------------------------------------------------------------------------
+
+    p=plot(p4, p_sg, p_sg_der, p_sg_der2,  layout=(4,1), size=(1200, 1400))
+    
+    return p
+
+end
 
 function plot_low_pump_power(outvalsS21phidcSweep, outvalsS11phidcSweep, outvalsS21PhasephidcSweep, params, sim_vars)
 
@@ -176,12 +369,14 @@ function plot_low_pump_power(outvalsS21phidcSweep, outvalsS11phidcSweep, outvals
     )
 
 
-    m, q, m_p, q_p, m_phalf, q_phalf, m_stopband, q_stopband = calculation_lines_low_pump_power(outvalsS21PhasephidcSweep, params, sim_vars)
+    m, q, m_p, q_p, m_phalf, q_phalf, m_stopband, q_stopband, m_nonlin, q_nonlin= calculation_lines_low_pump_power(outvalsS21PhasephidcSweep, params, sim_vars)
 
 
+    #plot lines
 
-    plot!(p4, sim_vars[:ws] / (2 * pi * 1e9), m .* sim_vars[:ws] .+ q, label="linear relation", color=:orange)
-    plot!(p4, sim_vars[:ws] / (2 * pi * 1e9), m_p .* sim_vars[:ws] .+ q_p, label="wp line", color=:darkblue)
+    #plot!(p4, sim_vars[:ws] / (2 * pi * 1e9), m .* sim_vars[:ws] .+ q, label="linear relation", color=:orange)
+    #plot!(p4, sim_vars[:ws] / (2 * pi * 1e9), m_p .* sim_vars[:ws] .+ q_p, label="wp line", color=:darkblue)
+    #plot!(p4, sim_vars[:ws] / (2 * pi * 1e9), m_nonlin .* sim_vars[:ws] .+ q_nonlin, label="wp line nonlin", color=:orange)
     #plot!(p4, sim_vars[:ws] / (2 * pi * 1e9), m_phalf .* sim_vars[:ws] .+ q_phalf, label="wp/2 line", color=:green)
     plot!(p4, sim_vars[:ws] / (2 * pi * 1e9), m_stopband .* sim_vars[:ws] .+ q_stopband, label="stopband line", color=:darkred)
 
@@ -355,7 +550,7 @@ function find_best_IpGain(outvalsS21IpSweep, sim_vars)
         end
     end
 
-    return IpGainBest, best_index
+    return IpGainBest, best_index, mean_ref
 
 end
 
@@ -393,7 +588,7 @@ function plot_at_fixed_flux(outvalsS21IpSweep, outvalsS11IpSweep, sim_vars)
         colorbar=true
     )
 
-    IpGain, IpIndex = find_best_IpGain(outvalsS21IpSweep, sim_vars)
+    IpGain, IpIndex, mean_gain = find_best_IpGain(outvalsS21IpSweep, sim_vars)
     sim_vars[:IpGain]=IpGain
 
     p5 = plot(
@@ -402,11 +597,12 @@ function plot_at_fixed_flux(outvalsS21IpSweep, outvalsS11IpSweep, sim_vars)
         xlabel=L"f / GHz",
         ylabel=L"S_{21} / dB",
         title="Gain Profile",
-        legend=false,
+        legend=true,
         colorbar=true,
         framestyle=:box
     )
-
+    plot!(p5, NaN, NaN, label="Gain mean in the band: $(round(mean_gain, digits=3)) dB") 
+    
 
     vline!(p1p, [sim_vars[:IpGain] / 1e-6], width=2, color=:black)
     vline!(p2p, [sim_vars[:IpGain] / 1e-6], width=2, color=:black)
@@ -420,7 +616,7 @@ function plot_at_fixed_flux(outvalsS21IpSweep, outvalsS11IpSweep, sim_vars)
     hline!(p1p, [2 * sim_vars[:wp][1] / (2 * pi * 1e9)], width=2, color=:gray)
     hline!(p2p, [2 * sim_vars[:wp][1] / (2 * pi * 1e9)], width=2, color=:gray)
 
-    vline!(p5, [sim_vars[:wp][1] / (2 * pi * 1e9)], width=2, color=:black)
+    vline!(p5, [sim_vars[:wp][1] / (2 * pi * 1e9)], width=2, color=:black, label="")
     vline!(p5, [(1 / 2) * sim_vars[:wp][1] / (2 * pi * 1e9)], width=2, style=:dash, color=:gray, label="")
     vline!(p5, [(3 / 2) * sim_vars[:wp][1] / (2 * pi * 1e9)], width=2, style=:dash, color=:gray, label="")
     vline!(p5, [2 * sim_vars[:wp][1] / (2 * pi * 1e9)], width=2, color=:gray,label="")
