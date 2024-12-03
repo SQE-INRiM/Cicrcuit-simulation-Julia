@@ -30,3 +30,38 @@ function generate_n_initial_points(n, params)
     points = [Tuple(Float64.(generate_initial_point(params))) for _ in 1:n]
     return points
 end
+
+
+function find_n_initial_points(sim_params_space::Dict)
+
+    parameter_lengths = [length(values) for values in values(sim_params_space)]
+    n_initial_points = prod(parameter_lengths)
+    
+    return n_initial_points
+end
+
+function simulation_time_estimation(n_initial_points, n_maxiters, n_num_new_samples)
+    # Define the time per point in seconds
+    time_per_point = 7.0  # seconds
+    
+    # Calculate total time for the simulation
+    total_points = n_initial_points + n_maxiters * n_num_new_samples
+    time_estimated = total_points * time_per_point  # in seconds
+    
+    # Breakdown time into days, hours, minutes, and seconds
+    total_seconds = round(Int, time_estimated)
+    days = div(total_seconds, 86400)
+    hours = div(total_seconds % 86400, 3600)
+    minutes = div(total_seconds % 3600, 60)
+    seconds = total_seconds % 60
+    
+    # Calculate the finishing time
+    current_time = Dates.now()  # Current date and time
+    finish_time = current_time + Dates.Second(total_seconds)
+    
+    # Create formatted time strings
+    formatted_estimation = "$(days)d $(hours)h $(minutes)m $(seconds)s"
+    formatted_finish_time = Dates.format(finish_time, "yyyy-MM-dd HH:mm:ss")
+    
+    return formatted_estimation, formatted_finish_time
+end

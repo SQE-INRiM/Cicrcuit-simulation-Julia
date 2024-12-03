@@ -132,12 +132,13 @@ end
 
 
 
-function plot_derivative_low_pump(S21phase, sim_vars, params)
-
+function plot_derivative_low_pump(S21phase, sim_vars, params)    
+    
+    
     phidcIndex = findall(x -> x == params[:phidc], sim_vars[:phidcSweep])
 
-    y=-S21phase[:, phidcIndex] / params[:N]
-    x= sim_vars[:ws] / (2 * pi * 1e9)
+    y =-S21phase[:, phidcIndex] / params[:N]
+    x = sim_vars[:ws] / (2 * pi * 1e9)
 
     p4 = plot(
         x,
@@ -187,7 +188,7 @@ function plot_derivative_low_pump(S21phase, sim_vars, params)
 
     #---------------------------------------------------------------------------
 
-    window_size = 27 # Must be odd
+    window_size = 11 #27 # Must be odd
     poly_order = 3
     y_sg = savitzky_golay(y[:,1], window_size, poly_order)    
 
@@ -229,15 +230,16 @@ function plot_derivative_low_pump(S21phase, sim_vars, params)
 
     #---------------------------------------------------------------------------
 
+    # First derivative
 
-    y_der_sg = savitzky_golay(y[:,1], window_size, poly_order, deriv=1)
+    y_der_sg = savitzky_golay(y[:,1], window_size, poly_order, deriv=1, rate=100)
     #y_der_sg_rate = savitzky_golay(y[:,1], window_size, poly_order, deriv=1, rate=200/(15-(-5)))
 
     p_sg_der = plot(
         x,
         [y_der_sg.y],
         xlabel=L"f / GHz",
-        ylabel=L"k / rad \cdot cells^{-1}",
+        ylabel=L"k' / a.u.",
         title="First derivative DR with SavitzkyGolay",
         #ylim=(0.0, 1.5),
         legend=true,
@@ -254,14 +256,16 @@ function plot_derivative_low_pump(S21phase, sim_vars, params)
 
     #--------------------------------------------------------------------------
 
-    y_der2_sg = savitzky_golay(y[:,1], window_size, poly_order, deriv=2)
+    # Second derivative
+
+    y_der2_sg = savitzky_golay(y[:,1], window_size, poly_order, deriv=2, rate=100)
     #y_der_sg_rate = savitzky_golay(y[:,1], window_size, poly_order, deriv=1, rate=200/(15-(-5)))
 
     p_sg_der2 = plot(
         x,
         [y_der2_sg.y],
         xlabel=L"f / GHz",
-        ylabel=L"k / rad \cdot cells^{-1}",
+        ylabel=L"k'' / a.u.",
         title="Second derivative DR with SavitzkyGolay",
         #ylim=(0.0, 1.5),
         legend=true,
@@ -270,25 +274,6 @@ function plot_derivative_low_pump(S21phase, sim_vars, params)
         framestyle=:box
     )
 
-    y = y_der2_sg.y
-
-    # Define the ranges for y
-    #range1 = (2, 5)  # Range 1: y in [2, 5]
-    #range2 = (6, 8)  # Range 2: y in [6, 8]
-
-    # Filter the data for each range
-    x_range1 = x[y .>= range1[1] .&& y .<= range1[2]]
-    y_range1 = y[y .>= range1[1] .&& y .<= range1[2]]
-
-    x_range2 = x[y .>= range2[1] .&& y .<= range2[2]]
-    y_range2 = y[y .>= range2[1] .&& y .<= range2[2]]
-
-    # Compute max and min
-    max_y1, max_index1 = findmax(y_range1)
-    max_x1 = x_range1[max_index1]
-
-    min_y2, min_index2 = findmin(y_range2)
-    min_x2 = x_range2[min_index2]
 
     vline!(p_sg_der2, [sim_vars[:wp][1] / (2 * pi * 1e9)], width=2, color=:black, label="")
     vline!(p_sg_der2, [(1 / 2) * sim_vars[:wp][1] / (2 * pi * 1e9)], width=2, style=:dash, color=:gray, label="")
@@ -299,9 +284,71 @@ function plot_derivative_low_pump(S21phase, sim_vars, params)
 
     #---------------------------------------------------------------------------
 
-    p=plot(p4, p_sg, p_sg_der, p_sg_der2,  layout=(4,1), size=(1200, 1400))
+    # Finding max peaks
+
+    y = y_der2_sg.y
+
     
-    return p
+    #Finding min --> ci interessa il max ma il primo min è piu sensibile
+
+    pkindices, properties = findpeaks1d(-y; 
+    height=2,             # Minimum peak height
+    prominence=0.01,        # Minimum prominence of peaks
+    width=1.0,             # Minimum width of peaks
+    relheight=0.5           # Relative height to determine peak edges
+    )
+
+    x_mins = x[pkindices]
+    y_mins = y[pkindices]
+    scatter!(p_sg_der2, x_mins, y_mins, color="blue", markersize=2, label="Min")
+
+    #println("xmins: ", x_mins)
+    first_x_min = isempty(x_mins) ? 0 : x_mins[1]
+    #println("first_x_min ", first_x_min)
+    
+
+    # Finding max
+
+    pkindices, properties = findpeaks1d(y; 
+    height=-10,             # Minimum peak height
+    prominence=0.01,        # Minimum prominence of peaks
+    width=1.0,             # Minimum width of peaks
+    relheight=0.5           # Relative height to determine peak edges
+    )
+
+    x_maxs = x[pkindices]
+    y_maxs = y[pkindices]
+
+    scatter!(p_sg_der2, x_maxs, y_maxs, color="red", markersize=2, label="Max")
+
+
+
+    function find_first_peak(x_maxs, y_maxs, first_x_min)
+        if first_x_min == 0
+            return 0, 0
+        end
+        for (x_max, y_max) in zip(x_maxs, y_maxs)
+            if x_max > first_x_min 
+                return x_max, y_max
+            end
+        end
+        return 0,0  # Return nothing if no peak is found
+    end
+
+    x_peak_sb, y_peak_sb = find_first_peak(x_maxs, y_maxs, first_x_min)
+    #println(x_peak_sb)
+    #println( y_peak_sb)
+
+    scatter!(p_sg_der2, [x_peak_sb], [y_peak_sb], color="green", markersize=5, label="stopband peak")
+
+    x_pump = x[wpIndex][1]
+    #println("x_pump", x_pump)
+
+    #-------------------------------------------------------------------------
+
+    p=plot(p4, p_sg, p_sg_der, p_sg_der2, layout=(4,1), size=(1200, 1400))
+    
+    return p, x_peak_sb, x_pump
 
 end
 
@@ -483,7 +530,6 @@ end
 
 
 
-
 #------------------------------------------SIMULATION AT FIXED FLUX---------------------------------------------------
 
 
@@ -599,10 +645,10 @@ function plot_at_fixed_flux(outvalsS21IpSweep, outvalsS11IpSweep, sim_vars)
         title="Gain Profile",
         legend=true,
         colorbar=true,
+        label="Total gain: $(round(mean_gain,  digits=2)) dB",
         framestyle=:box
     )
-    plot!(p5, NaN, NaN, label="Gain mean in the band: $(round(mean_gain, digits=3)) dB") 
-    
+
 
     vline!(p1p, [sim_vars[:IpGain] / 1e-6], width=2, color=:black)
     vline!(p2p, [sim_vars[:IpGain] / 1e-6], width=2, color=:black)
@@ -615,6 +661,10 @@ function plot_at_fixed_flux(outvalsS21IpSweep, outvalsS11IpSweep, sim_vars)
     hline!(p2p, [(3 / 2) * sim_vars[:wp][1] / (2 * pi * 1e9)], width=2, style=:dash, color=:gray)
     hline!(p1p, [2 * sim_vars[:wp][1] / (2 * pi * 1e9)], width=2, color=:gray)
     hline!(p2p, [2 * sim_vars[:wp][1] / (2 * pi * 1e9)], width=2, color=:gray)
+
+    hline!(p2p, [(sim_vars[:fp]/2)/1e9], width=1, color=:gray, style=:dash, label="")
+    hline!(p2p, [((sim_vars[:fp]/2)-1e9)/1e9], width=2, color=:darkblue, label="")
+    hline!(p2p, [((sim_vars[:fp]/2)+1e9)/1e9], width=2, color=:darkblue, label="")
 
     vline!(p5, [sim_vars[:wp][1] / (2 * pi * 1e9)], width=2, color=:black, label="")
     vline!(p5, [(1 / 2) * sim_vars[:wp][1] / (2 * pi * 1e9)], width=2, style=:dash, color=:gray, label="")
@@ -689,7 +739,7 @@ end
 function simulate_and_plot(params_temp, sim_vars, fixed_params, circuit_temp, circuitdefs_temp)
 
     S21, _, S11, _, S21phase = simulate_low_pump_power(sim_vars, circuit_temp, circuitdefs_temp)
-    p1,p2,p3,p4 = plot_low_pump_power(S21, S11, S21phase, params_temp, sim_vars)
+    p1, p2, p3, p4 = plot_low_pump_power(S21, S11, S21phase, params_temp, sim_vars)
 
     S21, _, S11, _ = simulate_at_fixed_flux(params_temp, sim_vars, circuit_temp, circuitdefs_temp)
     p1p, p2p, p5 = plot_at_fixed_flux(S21, S11, sim_vars)

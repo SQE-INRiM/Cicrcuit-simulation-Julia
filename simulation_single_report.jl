@@ -11,7 +11,7 @@ using Symbolics
 using Dates
 using Distributions
 using NaNStatistics
-
+using FindPeaks1D
 using Surrogates
 using LinearAlgebra
 using QuasiMonteCarlo
@@ -118,7 +118,7 @@ sim_vars = Dict(
     :fp =>  13.301 * 1e9,
     :Ip => 0.00001e-6,
     :IpGain => 0.25e-6,
-    :IpSweep => (0.1:0.05:0.3)*1e-6, #0.8*1e-6
+    :IpSweep => (0:0.1:1)*1e-6, #(0.1:0.1:0.3)*1e-6, # #0.8*1e-6
     :phidcSweep => (0:0.01:0.5),
     :Npumpharmonics => (8,),
     :Nmodulationharmonics => (4,),
@@ -138,7 +138,7 @@ JJSmallStd = 0.0               #Tra 0.05 e 0.2             # =0 -> perfect fab ,
 JJBigStd = 0.0                 #Tra 0.05 e 0.2             # =0 -> perfect fab , 0.1 -> 10% spread
 
 
-"""
+
 # Define the parameter arrays directly in the dictionary
 sim_params_space = Dict(
     :loadingpitch => [2],
@@ -165,7 +165,7 @@ optimal_metric = result[2]             # Optimal metric value
 optimal_params = vector_to_param(optimal_vec, keys_list)
 
 
-"""
+
 
 
 println("-----------------------------------------------------")
@@ -186,15 +186,38 @@ optimal_params = Dict(:smallJunctionArea => 0.7,
                     :loadingpitch => 3.0)
                     
                     
-optimal_parmas = add_parameters(optimal_params)
+optimal_params = add_parameters(optimal_params)
 
+
+optimal_params=Dict(:CgDensity => 7.72712727272727e-15, :smallJunctionArea => 2.5, :CgDielectricThichness => 11.0, :alphaSNAIL => 0.25, :CgloadingCell => 4.5, :criticalCurrentDensity => 0.4, :phidc => 0.39, :nMacrocells => 50.0, :LloadingCell => 1.5, :N => 150.0, :CgAreaUNLoaded => 200.0, :loadingpitch => 3.0)
 #possible benchmark
-optimal_params = Dict(:CgDensity => 6.488427480916029e-16, :smallJunctionArea => 0.5, :CgDielectricThichness => 131.0, :alphaSNAIL => 0.175, :CgloadingCell => 1.5, :criticalCurrentDensity => 0.4, :phidc => 0.37, :nMacrocells => 150.0, :LloadingCell => 1.25, :N => 300.0, :CgAreaUNLoaded => 200.0, :loadingpitch => 3.0)
+#optimal_params = Dict(:CgDensity => 6.488427480916029e-16, :smallJunctionArea => 0.5, :CgDielectricThichness => 131.0, :alphaSNAIL => 0.175, :CgloadingCell => 1.5, :criticalCurrentDensity => 0.4, :phidc => 0.37, :nMacrocells => 150.0, :LloadingCell => 1.25, :N => 300.0, :CgAreaUNLoaded => 200.0, :loadingpitch => 3.0)
 
 params=optimal_params
 println("Optimal Parameters: $optimal_params")
 #println("Optimal Metric: $optimal_metric")
 
+
+
+
+println("-----------------------------------------------------")
+
+n_initial_points = find_n_initial_points(sim_params_space) 
+n_maxiters = 10
+n_num_new_samples = 10
+
+time_estimated, finish_time = simulation_time_estimation(n_initial_points, n_maxiters, n_num_new_samples)
+
+println("Number of initial points: ", n_initial_points)
+println("Number of max interactions: ", n_maxiters)
+println("Number of samples for every interaction: ", n_num_new_samples)
+println("SIMULATION TIME ESTIMATED: ", time_estimated)
+
+println("-----------------------------------------------------")
+start_time = time()
+println("STARTING AT: ", (Dates.now()))
+println("SIMULATION END AT: ", finish_time)
+println("-----------------------------------------------------")
 
 circuit_temp, circuitdefs_temp = create_circuit(JJSmallStd, JJBigStd, optimal_params, fixed_params)
 
@@ -348,15 +371,17 @@ plot!(p_sg, sim_vars[:ws] / (2 * pi * 1e9), m_stopband .* sim_vars[:ws] .+ q_sto
 
 #---------------------------------------------------------------------------
 
+window_size = 21 # Must be odd
+poly_order = 3
 
-y_der_sg = savitzky_golay(y[:,1], window_size, poly_order, deriv=1)
+y_der_sg = savitzky_golay(y[:,1], window_size, poly_order, deriv=1, rate=100)
 #y_der_sg_rate = savitzky_golay(y[:,1], window_size, poly_order, deriv=1, rate=200/(15-(-5)))
 
 p_sg_der = plot(
     x,
     [y_der_sg.y],
     xlabel=L"f / GHz",
-    ylabel=L"k / rad \cdot cells^{-1}",
+    ylabel=L"a. u.",
     title="First derivative DR with SavitzkyGolay",
     #ylim=(0.0, 1.5),
     legend=true,
@@ -371,16 +396,20 @@ vline!(p_sg_der, [(1 / 2) * sim_vars[:wp][1] / (2 * pi * 1e9)], width=2, style=:
 vline!(p_sg_der, [(3 / 2) * sim_vars[:wp][1] / (2 * pi * 1e9)], width=2, style=:dash, color=:gray, label="")
 vline!(p_sg_der, [2 * sim_vars[:wp][1] / (2 * pi * 1e9)], width=2, color=:gray,label="")
 
+
 #--------------------------------------------------------------------------
 
-y_der2_sg = savitzky_golay(y[:,1], window_size, poly_order, deriv=2)
-#y_der_sg_rate = savitzky_golay(y[:,1], window_size, poly_order, deriv=1, rate=200/(15-(-5)))
+window_size = 11 # Must be odd
+poly_order = 3
+
+y_der2_sg = savitzky_golay(y[:,1], window_size, poly_order, deriv=2, rate=100)
+#y_der2_sg_rate = savitzky_golay(y[:,1], window_size, poly_order, deriv=1, rate=200/(15-(-5)))
 
 p_sg_der2 = plot(
     x,
     [y_der2_sg.y],
     xlabel=L"f / GHz",
-    ylabel=L"k / rad \cdot cells^{-1}",
+    ylabel=L"a. u.",
     title="Second derivative DR with SavitzkyGolay",
     #ylim=(0.0, 1.5),
     legend=true,
@@ -396,15 +425,155 @@ vline!(p_sg_der2, [(3 / 2) * sim_vars[:wp][1] / (2 * pi * 1e9)], width=2, style=
 vline!(p_sg_der2, [2 * sim_vars[:wp][1] / (2 * pi * 1e9)], width=2, color=:gray,label="")
 
 
+y = y_der2_sg.y
+
+"""
+id_lb_range1 = findall(x -> x == 12, x)[1]
+id_ub_range1 = findall(x -> x == 13, x)[1]
+
+max_y, index = findmax(y[id_lb_range1:id_ub_range1])
+max_x = x[id_lb_range1:id_ub_range1][index]
+#scatter!(p_sg_der2, [max_x], [max_y], label="Max")
+
+
+id_lb_range2 = findall(x -> x == 11, x)[1]
+id_ub_range2 = findall(x -> x == 13, x)[1]
+
+min_y, index = findmin(y[id_lb_range2:id_ub_range2])
+min_x = x[id_lb_range2:id_ub_range2][index]
+#scatter!(p_sg_der2, [min_x], [min_y], label="Min")
+"""
+#Finding min --> ci interessa il max ma il primo min è piu sensibile
+
+pkindices, properties = findpeaks1d(-y; 
+    height=5,             # Minimum peak height
+    prominence=0.01,        # Minimum prominence of peaks
+    width=1.0,             # Minimum width of peaks
+    relheight=0.5           # Relative height to determine peak edges
+)
+
+x_mins = x[pkindices]
+y_mins = y[pkindices]
+scatter!(p_sg_der2, x_mins, y_mins, color="blue", markersize=2, label="Min")
+
+
+
+println("xmins: ", x_mins)
+first_x_min = isempty(x_mins) ? 0 : x_mins[1]
+println("first_x_min ", first_x_min)
+
+
+
+
+# Finding max
+
+pkindices, properties = findpeaks1d(y; 
+    height=1,             # Minimum peak height
+    prominence=0.01,        # Minimum prominence of peaks
+    width=1.0,             # Minimum width of peaks
+    relheight=0.5           # Relative height to determine peak edges
+)
+
+x_maxs = x[pkindices]
+y_maxs = y[pkindices]
+
+scatter!(p_sg_der2, x_maxs, y_maxs, color="red", markersize=2, label="Max")
+
+
+
+function find_first_peak(x_maxs, y_maxs, first_x_min)
+    if first_x_min == 0
+        return 0, 0
+    end
+    for (x_max, y_max) in zip(x_maxs, y_maxs)
+        if x_max > first_x_min 
+            return x_max, y_max
+        end
+    end
+    return 0,0  # Return nothing if no peak is found
+end
+
+x_peak_sb, y_peak_sb = find_first_peak(x_maxs, y_maxs, first_x_min)
+println(x_peak_sb)
+println( y_peak_sb)
+
+scatter!(p_sg_der2, [x_peak_sb], [y_peak_sb], color="green", markersize=4, label="Stopband peak")
+
+
+
+
 
 #---------------------------------------------------------------------------
 
-p=plot(p1,p4, p_sm, p_sg, p_sg_der, p_sg_der2,  layout=(6,1), size=(1200, 1400))
+
+"""
+window_size = 11 # Must be odd
+poly_order = 5
+
+y_der3_sg = savitzky_golay(y[:,1], window_size, poly_order, deriv=3)
+
+p_sg_der3 = plot(
+    x,
+    [y_der3_sg.y],
+    xlabel=L"f / GHz",
+    ylabel=L"k''' / a. u.",
+    title="Third derivative DR with SavitzkyGolay",
+    #ylim=(0.0, 1.5),
+    legend=true,
+    colorbar=true,
+    label="",
+    framestyle=:box
+)
+
+
+vline!(p_sg_der3, [sim_vars[:wp][1] / (2 * pi * 1e9)], width=2, color=:black, label="")
+vline!(p_sg_der3, [(1 / 2) * sim_vars[:wp][1] / (2 * pi * 1e9)], width=2, style=:dash, color=:gray, label="")
+vline!(p_sg_der3, [(3 / 2) * sim_vars[:wp][1] / (2 * pi * 1e9)], width=2, style=:dash, color=:gray, label="")
+vline!(p_sg_der3, [2 * sim_vars[:wp][1] / (2 * pi * 1e9)], width=2, color=:gray,label="")
+
+dy=y_der3_sg.y
+
+# Find zeros of the derivative (smoothed version)
+function find_der_max(x, y, dy; neighborhood=1, prominence_threshold=1e-5)
+    extrema = []
+    extrema_dx = []
+    n = length(dy)
+    for i in (neighborhood + 1):(n - neighborhood)
+        
+        if dy[i-1] > 0 && dy[i] < 0
+            # Check if it's a significant maximum
+            is_prominent = all(y[i] >= y[j] + prominence_threshold for j in (i-neighborhood):(i+neighborhood) if j != i)
+            
+            if is_prominent
+                push!(extrema, (x[i], y[i]))  # Local maximum
+                push!(extrema_dx, (x[i], dy[i])) 
+                
+            end
+        end
+    end
+    return extrema, extrema_dx
+end
+
+#extrema, extrema_dx = find_der_max(x, y, dy)
+maxima = findlocalmaxima(imfilter(y, KernelFactors.gaussian((3))))
+maxima = [getindex(max, 1) for max in maxima]
+
+# Output extrema
+println(extrema)
+
+# Optional: Plot the results
+scatter!(p_sg_der2, [e[1] for e in extrema], [e[2] for e in extrema], label="Extrema", color=:red)
+#hline!(p_sg_der3, [0], width=1, color=:black, label="")
+#scatter!(p_sg_der3, [e[1] for e in extrema_dx], [e[2] for e in extrema_dx], label="Extrema", color=:blue)
+"""
+
+#----------------------------------------------------------------------------
+
+p=plot(p4, p_sg, p_sg_der, p_sg_der2, layout=(4,1), size=(1200, 1400))
 display(p)
 
 #maxS11 = maxS11val_BandFreq_FixFlux(S11, optimal_params, sim_vars)
 #println("Maximum S11: ", maxS11)
 
-p_temp = simulate_and_plot(optimal_params, sim_vars, fixed_params, circuit_temp, circuitdefs_temp)
-display(p_temp)
-
+#p_temp = simulate_and_plot(optimal_params, sim_vars, fixed_params, circuit_temp, circuitdefs_temp)
+#display(p_temp)
