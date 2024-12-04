@@ -16,6 +16,7 @@ using FindPeaks1D
 using Surrogates
 using LinearAlgebra
 using QuasiMonteCarlo
+using JLD2
 
 include("snail_circuit.jl")
 include("simulation_black_box.jl")
@@ -157,14 +158,40 @@ sim_params_space = Dict(
 
 sim_params_space = Dict(
     :loadingpitch => [3],
-    :nMacrocells => [50],   #20                     
-    :smallJunctionArea =>  collect(0.5:0.5:5), # [0.7]                        
-    :alphaSNAIL => collect(0.1:0.05:0.25),  #0.16                  
-    :LloadingCell => collect(1:1:5),   #[1.5], #                        
-    :CgloadingCell => collect(1:1:5),  #[1], #                           
-    :criticalCurrentDensity => [0.4], #collect(0.1:0.1:0.9),                
+    :nMacrocells => [50],               
+    :smallJunctionArea =>  collect(0.5:0.5:5),                       
+    :alphaSNAIL => collect(0.1:0.05:0.25),                   
+    :LloadingCell => collect(1:1.5:4.5),                          
+    :CgloadingCell => collect(1:1.5:4.5),                             
+    :criticalCurrentDensity => [0.4],                 
     :CgDielectricThichness => collect(10:10:70)     
 )
+
+sim_params_space = Dict(
+    :loadingpitch => [3],
+    :nMacrocells => [50],               
+    :smallJunctionArea =>  [2,3,4],                       
+    :alphaSNAIL => collect(0.15:0.5:0.25),                   
+    :LloadingCell => collect(1.5:1.5:4.5),                          
+    :CgloadingCell => collect(1.5:1.5:4.5),                             
+    :criticalCurrentDensity => [0.4],                 
+    :CgDielectricThichness => collect(10:20:70)     
+)
+
+"""
+# test par space
+sim_params_space = Dict(
+    :loadingpitch => [3],
+    :nMacrocells => [50],               
+    :smallJunctionArea =>  [2,3],                       
+    :alphaSNAIL => [0.2],                   
+    :LloadingCell => [3],                          
+    :CgloadingCell => [3],                             
+    :criticalCurrentDensity => [0.4],                 
+    :CgDielectricThichness => [40]     
+)
+
+"""
 
 
 #-----------------------------------------------------------------------------------
@@ -208,7 +235,7 @@ function cost(vec) #vector passing
 
     params_temp = add_parameters(params_temp)
     println("Dictionary update: ", params_temp)
-    println("flux value: ", params_temp[:phidc], " for alpha: ", params_temp[:alphaSNAIL])
+    #println("flux value: ", params_temp[:phidc], " for alpha: ", params_temp[:alphaSNAIL])
 
     circuit_temp, circuitdefs_temp = create_circuit(JJSmallStd, JJBigStd, params_temp, fixed_params)
     println("Circuit created")
@@ -258,21 +285,30 @@ end
 println("-----------------------------------------------------")
 
 n_initial_points = find_n_initial_points(sim_params_space) 
-n_maxiters = 10
-n_num_new_samples = 10
+n_maxiters = 10 #50
+n_num_new_samples = 12 #80
 
 time_estimated, finish_time = simulation_time_estimation(n_initial_points, n_maxiters, n_num_new_samples)
 
-println("Number of initial points: ", n_initial_points)
+println("Total number of initial points: ", n_initial_points)
 println("Number of max interactions: ", n_maxiters)
 println("Number of samples for every interaction: ", n_num_new_samples)
+println("Total number of point calculated in the simulation: ", n_maxiters*n_num_new_samples)
+
 println("SIMULATION TIME ESTIMATED: ", time_estimated)
 
 println("-----------------------------------------------------")
 start_time = time()
-println("STARTING AT: ", (Dates.now()))
-println("SIMULATION END AT: ", finish_time)
+dates_now = (Dates.now())
+println("STARTING AT: ", dates_now)
+println("ESTIMATED END AT: ", finish_time)
 println("-----------------------------------------------------")
+
+output = "SIMULATION IN PROGRESS... \n\nTIME ESTIMATED:  $(time_estimated)\n\n\n\nSTARTING AT: $(dates_now)\n\nESTIMATED END AT: $(finish_time)"
+out_plot = plot([], legend=false, grid=false, framestyle=:none)
+annotate!(out_plot, 0.5, 0.5, text(output, 12))  # Position the text at the center of the plot
+display(out_plot)
+
 
 
 
@@ -286,18 +322,33 @@ println("Lower bounds:", lb)
 println("Upper bounds:", ub)
 
 
+# Create n random points
 
-#n_initial_points = 100
-initial_points = generate_n_initial_points(n_initial_points, sim_params_space)
+#n_initial_points = 2
+#ini_points = generate_n_initial_random_points(n_initial_points, sim_params_space)
+#println("Initial points: ", ini_points)
+
+
+# Create all the points of the parameter space
+
+initial_points = generate_all_initial_points(sim_params_space)
+save_points_to_file(initial_points, "initial_points.jld2")
 #println("Initial points: ", initial_points)
 
-
-for p in initial_points
-    println("Single point: ", p)
-end 
+#for p in initial_points
+#    println("Single point: ", p)
+#end 
 
 initial_values = [cost(p) for p in initial_points]
-println("Initial values: ", initial_values)
+save_points_to_file(initial_values, "initial_values.jld2")
+#println("Initial values: ", initial_values)
+
+
+#initial_points = load_points_from_file("initial_points.jld2")
+#println("Initial points: ", initial_points)
+
+#initial_values = load_points_from_file("initial_values.jld2")
+#println("Initial values: ", initial_values)
 
 
 my_k_SRBFN = Kriging(initial_points, initial_values, lb, ub)
@@ -380,9 +431,9 @@ p1,p2,p3,p4 = plot_low_pump_power(S21, S11, S21phase, optimal_params, sim_vars)
 p=plot(p1,p4,layout=(2,1), size=(600, 700))
 display(p)
 
-p, _, _ = plot_derivative_low_pump(S21phase, sim_vars, params)
-display(p)
 
+p, _, _ = plot_derivative_low_pump(S21phase, sim_vars, optimal_params)
+display(p)
 
 p_temp = simulate_and_plot(optimal_params, sim_vars, fixed_params, circuit_temp, circuitdefs_temp)
 

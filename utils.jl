@@ -18,20 +18,6 @@ function add_parameters(params_temp)
 end
 
 
-# Function to generate a single initial point as a vector of vectors
-function generate_initial_point(params)
-    return [rand(v) for v in values(params)]  # Correctly sampling from the values of the dictionary
-end
-
-
-# Function to generate n initial points as a tuple with all float values
-function generate_n_initial_points(n, params)
-    # Generate `n` initial points as tuples with Float64 elements
-    points = [Tuple(Float64.(generate_initial_point(params))) for _ in 1:n]
-    return points
-end
-
-
 function find_n_initial_points(sim_params_space::Dict)
 
     parameter_lengths = [length(values) for values in values(sim_params_space)]
@@ -39,6 +25,49 @@ function find_n_initial_points(sim_params_space::Dict)
     
     return n_initial_points
 end
+
+
+# Function to generate a single initial point as a vector of vectors
+function generate_initial_point(params)
+    return [rand(v) for v in values(params)]  # Correctly sampling from the values of the dictionary
+end
+
+
+# Function to generate n initial points as a tuple with all float values
+function generate_n_initial_random_points(n, params)
+    # Generate `n` initial points as tuples with Float64 elements
+    points = [Tuple(Float64.(generate_initial_point(params))) for _ in 1:n]
+    return points
+end
+
+
+function generate_all_initial_points(params_space)
+    # Extract the parameter value lists from the dictionary
+    value_lists = values(params_space)
+    
+    # Initialize an empty array to store the generated points
+    points = []
+    
+    # Generate all combinations using nested for loops (generalized)
+    for values in Iterators.product(value_lists...)
+        # Convert each combination into a tuple of floats
+        push!(points, tuple(map(float, values)...))
+    end
+
+    return points
+end
+
+function save_points_to_file(points, filename)
+    # Save the points as a vector to the file
+    @save filename points
+end
+
+function load_points_from_file(filename)
+    # Load the points vector from the file
+    data = load(filename)
+    return data["points"]  # Assuming the variable name is "points"
+end
+
 
 function simulation_time_estimation(n_initial_points, n_maxiters, n_num_new_samples)
     # Define the time per point in seconds
@@ -61,7 +90,7 @@ function simulation_time_estimation(n_initial_points, n_maxiters, n_num_new_samp
     
     # Create formatted time strings
     formatted_estimation = "$(days)d $(hours)h $(minutes)m $(seconds)s"
-    formatted_finish_time = Dates.format(finish_time, "yyyy-MM-dd HH:mm:ss")
+    formatted_finish_time = string(finish_time) 
     
     return formatted_estimation, formatted_finish_time
 end
