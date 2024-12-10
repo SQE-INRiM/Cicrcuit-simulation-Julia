@@ -100,7 +100,7 @@ function calculation_lines_low_pump_power(outvalsS21PhasephidcSweep, params, sim
     # fit after wp
 
     y_nonlin = -outvalsS21PhasephidcSweep[wpIndex[1]+3:wpIndex[1]+17, phidcIndex] / params[:N]
-    x_nonlin = sim_vars[:ws][wpIndex[1]+3:wpIndex[1]+17]
+    x_nonlin = sim_vars[:ws][wpIndex[1]+3:wpIndex[1]+17] / (2 * pi * 1e9)
 
 
     n = length(x_nonlin)
@@ -110,23 +110,61 @@ function calculation_lines_low_pump_power(outvalsS21PhasephidcSweep, params, sim
 
     q_nonlin = beta[1]
     m_nonlin = beta[2]
+    println("qnonlin ", q_nonlin)
+    println("mnonlin ", m_nonlin)
 
+    # fit at the frequency band at wp/2
+
+    y=-outvalsS21PhasephidcSweep[:, phidcIndex] / params[:N]
+    x= sim_vars[:ws] / (2 * pi * 1e9)
     
-    return m, q, m_p, q_p, m_phalf, q_phalf, m_stopband, q_stopband, m_nonlin, q_nonlin
+    f_p=x[wpIndex[1]]
+    k_p=y[wpIndex[1]]
+    println("f_p ", f_p)
+    println("k_p ", k_p)
+
+    f_phalf=x[wphalfIndex[1]]
+    k_phalf=y[wphalfIndex[1]]
+    println("f_phalf ", f_phalf)
+    println("k_phalf ", k_phalf)
+
+
+    fp_band_dx = round((sim_vars[:fp]/2)+1e9, digits=-8)  
+    fp_band_sx = round((sim_vars[:fp]/2)-1e9, digits=-8)
+    k_band_dx_index = findall(x -> x == fp_band_dx, sim_vars[:fs])
+    k_band_sx_index = findall(x -> x == fp_band_sx, sim_vars[:fs])
+    fp_band = x[k_band_sx_index[1]:k_band_dx_index[1]]  
+    kp_band = y[k_band_sx_index[1]:k_band_dx_index[1]]
+    println("f_band ", fp_band)
+    println("k_band ", kp_band)
+
+
+    n = length(fp_band)
+    X = [ones(n) fp_band] # Add a column of ones for the intercept
+
+    beta = X \ kp_band # Solves for [intercept, slope]
+
+    q_freqband = beta[1]
+    m_freqband = beta[2]
+    println("qfreq ", q_freqband)
+    println("mfreq ", m_freqband)
+    
+    return m, q, m_p, q_p, m_phalf, q_phalf, m_stopband, q_stopband, m_nonlin, q_nonlin, m_freqband, q_freqband
 
 end
 
 function calculation_metric_lines(outvalsS21PhasephidcSweep, params, sim_vars)
 
-    m, _, m_p, _, m_phalf, _, m_stopband, _, m_nonlin = calculation_lines_low_pump_power(outvalsS21PhasephidcSweep, params, sim_vars)
+    m, _, m_p, _, m_phalf, _, m_stopband, _, m_nonlin, _, m_freqband, _ = calculation_lines_low_pump_power(outvalsS21PhasephidcSweep, params, sim_vars)
 
     alpha_lin=atan(m[1])
     alpha_wp=atan(m_p[1])
     alpha_wphalf=atan(m_phalf[1])
     alpha_stopband =atan(m_stopband[1])
     alpha_nonlin=atan(m_nonlin[1])
+    alpha_freqband=atan(m_freqband[1])
 
-    return alpha_wphalf, alpha_wp, alpha_lin, alpha_stopband, alpha_nonlin
+    return alpha_wphalf, alpha_wp, alpha_lin, alpha_stopband, alpha_nonlin, alpha_freqband
 
 end
 
@@ -416,7 +454,7 @@ function plot_low_pump_power(outvalsS21phidcSweep, outvalsS11phidcSweep, outvals
     )
 
 
-    m, q, m_p, q_p, m_phalf, q_phalf, m_stopband, q_stopband, m_nonlin, q_nonlin= calculation_lines_low_pump_power(outvalsS21PhasephidcSweep, params, sim_vars)
+    m, q, m_p, q_p, m_phalf, q_phalf, m_stopband, q_stopband, m_nonlin, q_nonlin, m_freqband, q_freqband= calculation_lines_low_pump_power(outvalsS21PhasephidcSweep, params, sim_vars)
 
 
     #plot lines
@@ -425,8 +463,9 @@ function plot_low_pump_power(outvalsS21phidcSweep, outvalsS11phidcSweep, outvals
     #plot!(p4, sim_vars[:ws] / (2 * pi * 1e9), m_p .* sim_vars[:ws] .+ q_p, label="wp line", color=:darkblue)
     #plot!(p4, sim_vars[:ws] / (2 * pi * 1e9), m_nonlin .* sim_vars[:ws] .+ q_nonlin, label="wp line nonlin", color=:orange)
     #plot!(p4, sim_vars[:ws] / (2 * pi * 1e9), m_phalf .* sim_vars[:ws] .+ q_phalf, label="wp/2 line", color=:green)
-    plot!(p4, sim_vars[:ws] / (2 * pi * 1e9), m_stopband .* sim_vars[:ws] .+ q_stopband, label="stopband line", color=:darkred)
-
+    plot!(p4, sim_vars[:ws] / (2 * pi * 1e9), m_nonlin .* (sim_vars[:ws]/(2 * pi * 1e9)) .+ q_nonlin, label="nonlin line", color=:green)
+    plot!(p4, sim_vars[:ws] / (2 * pi * 1e9), m_stopband .* (sim_vars[:ws]) .+ q_stopband, label="stopband line", color=:darkred)
+    plot!(p4, sim_vars[:ws] / (2 * pi * 1e9), m_freqband .* (sim_vars[:ws]/(2 * pi * 1e9)) .+ q_freqband, label="freqband line", color=:darkblue)
 
 
     # Plot customization

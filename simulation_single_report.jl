@@ -15,6 +15,8 @@ using FindPeaks1D
 using Surrogates
 using LinearAlgebra
 using QuasiMonteCarlo
+using JLD2
+using SavitzkyGolay
 
 include("snail_circuit.jl")
 include("simulation_black_box.jl")
@@ -105,7 +107,7 @@ fixed_params = Dict(
     :nodePerCell => 4,                 # Nodes per cell
 
     # Fabrication parameters (fixed)
-    :JosephsonCapacitanceDensity => 10, # 45 Unit value
+    :JosephsonCapacitanceDensity => 10, #Unit value
     :CgDielectricK => 9.6,             # Dielectric constant
     :tandeltaCgDielectric => 2.1e-3,   # Loss tangent of dielectric
 )
@@ -118,7 +120,7 @@ sim_vars = Dict(
     :fp =>  13.301 * 1e9,
     :Ip => 0.00001e-6,
     :IpGain => 0.25e-6,
-    :IpSweep => (0:0.1:1)*1e-6, #(0.1:0.1:0.3)*1e-6, # #0.8*1e-6
+    :IpSweep => (0:0.2:1)*1e-6, #(0.1:0.1:0.3)*1e-6, # #0.8*1e-6
     :phidcSweep => (0:0.01:0.5),
     :Npumpharmonics => (8,),
     :Nmodulationharmonics => (4,),
@@ -150,6 +152,8 @@ sim_params_space = Dict(
     :criticalCurrentDensity => [0.2, 0.5],                
     :CgDielectricThichness => [10, 20, 40, 70]                    
 )
+
+
 
 
 
@@ -189,50 +193,30 @@ optimal_params = Dict(:smallJunctionArea => 0.7,
 optimal_params = add_parameters(optimal_params)
 
 
-optimal_params=Dict(:CgDensity => 7.72712727272727e-15, :smallJunctionArea => 2.5, :CgDielectricThichness => 11.0, :alphaSNAIL => 0.25, :CgloadingCell => 4.5, :criticalCurrentDensity => 0.4, :phidc => 0.39, :nMacrocells => 50.0, :LloadingCell => 1.5, :N => 150.0, :CgAreaUNLoaded => 200.0, :loadingpitch => 3.0)
+#optimal_params=Dict(:CgDensity => 1.2635933809032367e-15, :smallJunctionArea => 2.1394323878236645, :CgDielectricThichness => 67.26720896499296, :alphaSNAIL => 0.15, :CgloadingCell => 1.5456783925252877, :criticalCurrentDensity => 0.4, :phidc => 0.36, :nMacrocells => 50.0, :LloadingCell => 1.5250587114918863, :N => 150.0, :CgAreaUNLoaded => 200.0, :loadingpitch => 3.0)
 #possible benchmark
-#optimal_params = Dict(:CgDensity => 6.488427480916029e-16, :smallJunctionArea => 0.5, :CgDielectricThichness => 131.0, :alphaSNAIL => 0.175, :CgloadingCell => 1.5, :criticalCurrentDensity => 0.4, :phidc => 0.37, :nMacrocells => 150.0, :LloadingCell => 1.25, :N => 300.0, :CgAreaUNLoaded => 200.0, :loadingpitch => 3.0)
-
-params=optimal_params
+optimal_params = Dict(:CgDensity => 1.216548036096446e-15, :smallJunctionArea => 2.039918401851307, :CgDielectricThichness => 69.86851112984859, :alphaSNAIL => 0.15241400139422023, :CgloadingCell => 1.503267171440983, :criticalCurrentDensity => 0.4, :phidc => 0.36, :nMacrocells => 50.0, :LloadingCell => 1.5032002776845013, :N => 150.0, :CgAreaUNLoaded => 200.0, :loadingpitch => 3.0)
+optimal_params=optimal_params
 println("Optimal Parameters: $optimal_params")
 #println("Optimal Metric: $optimal_metric")
 
 
 
 
-println("-----------------------------------------------------")
-
-n_initial_points = find_n_initial_points(sim_params_space) 
-n_maxiters = 10
-n_num_new_samples = 10
-
-time_estimated, finish_time = simulation_time_estimation(n_initial_points, n_maxiters, n_num_new_samples)
-
-println("Number of initial points: ", n_initial_points)
-println("Number of max interactions: ", n_maxiters)
-println("Number of samples for every interaction: ", n_num_new_samples)
-println("SIMULATION TIME ESTIMATED: ", time_estimated)
-
-println("-----------------------------------------------------")
-start_time = time()
-println("STARTING AT: ", (Dates.now()))
-println("SIMULATION END AT: ", finish_time)
-println("-----------------------------------------------------")
-
 circuit_temp, circuitdefs_temp = create_circuit(JJSmallStd, JJBigStd, optimal_params, fixed_params)
 
-S21, _, S11, _, S21phase = simulate_low_pump_power(sim_vars, circuit_temp, circuitdefs_temp)
+#S21, _, S11, _, S21phase = simulate_low_pump_power(sim_vars, circuit_temp, circuitdefs_temp)
 
-p1, _, _, _ = plot_low_pump_power(S21, S11, S21phase, optimal_params, sim_vars)
+#p1, _, _, _ = plot_low_pump_power(S21, S11, S21phase, optimal_params, sim_vars)
 
 
 
 #-----------------------------------------------------------------------------------
 
 
-phidcIndex = findall(x -> x == params[:phidc], sim_vars[:phidcSweep])
+phidcIndex = findall(x -> x == optimal_params[:phidc], sim_vars[:phidcSweep])
 
-y=-S21phase[:, phidcIndex] / params[:N]
+y=-S21phase[:, phidcIndex] / optimal_params[:N]
 x= sim_vars[:ws] / (2 * pi * 1e9)
 
 p4 = plot(
@@ -261,6 +245,70 @@ wphalf = 2*pi* round(sim_vars[:fp]/2, digits=-8)
 phidcIndex = findall(x -> x == optimal_params[:phidc], sim_vars[:phidcSweep])
 wpIndex = findall(x -> x == wp, sim_vars[:ws])
 wphalfIndex = findall(x -> x == wphalf, sim_vars[:ws])
+
+
+#----------------------------------------------------------------------
+
+#ks + ki = kp
+
+f_p=x[wpIndex[1]]
+k_p=y[wpIndex[1]]
+println("f_p ", f_p)
+println("k_p ", k_p)
+
+f_phalf=x[wphalfIndex[1]]
+k_phalf=y[wphalfIndex[1]]
+println("f_phalf ", f_phalf)
+println("k_phalf ", k_phalf)
+
+
+fp_band_dx = round((sim_vars[:fp]/2)+1e9, digits=-8)  
+fp_band_sx = round((sim_vars[:fp]/2)-1e9, digits=-8)
+k_band_dx_index = findall(x -> x == fp_band_dx, sim_vars[:fs])
+k_band_sx_index = findall(x -> x == fp_band_sx, sim_vars[:fs])
+fp_band = x[k_band_sx_index[1]:k_band_dx_index[1]]  
+kp_band_dx = y[k_band_dx_index[1]]
+kp_band_sx = y[k_band_sx_index[1]]
+kp_band = y[k_band_sx_index[1]:k_band_dx_index[1]]
+println("f of f_band ", fp_band_sx, " ", fp_band_dx)
+println("f band ", fp_band)
+println("k of f_band ", kp_band_sx, " ", kp_band_dx)
+println("k band ", kp_band)
+
+function compute_deltaK(kp_band, k_p) 
+    sums = 0
+    n = length(kp_band)
+
+    for idx in 1:div(n, 2)
+        # Add symmetric pairs
+        sums += kp_band[idx] + kp_band[end - idx + 1]
+    end
+
+    # Handle the middle element if the length of kp_band is odd
+    if isodd(n)
+        sums += kp_band[div(n, 2) + 1]
+    end
+
+    println(sums/length(kp_band))
+    deltaK = sums/length(kp_band) - k_p
+    println("deltaK ", deltaK)
+    
+    return abs(deltaK) 
+
+end    
+
+deltaKK = compute_deltaK(kp_band, k_p)
+println("deltaKK ", deltaKK)
+
+#deltaK = k_s + k_i - k_p
+
+
+
+
+
+#------------------------------------------------------------------------
+
+
 
 y_stopband = y[wpIndex[1]-10:wpIndex[1]-2]
 x_stopband = sim_vars[:ws][wpIndex[1]-10:wpIndex[1]-2]
@@ -327,7 +375,6 @@ plot!(p_sm, sim_vars[:ws] / (2 * pi * 1e9), m_stopband .* sim_vars[:ws] .+ q_sto
 
 #---------------------------------------------------------------------------
 
-using SavitzkyGolay
 
 window_size = 11 # Must be odd
 poly_order = 3
@@ -458,9 +505,9 @@ scatter!(p_sg_der2, x_mins, y_mins, color="blue", markersize=2, label="Min")
 
 
 
-println("xmins: ", x_mins)
-first_x_min = isempty(x_mins) ? 0 : x_mins[1]
-println("first_x_min ", first_x_min)
+#println("xmins: ", x_mins)
+#first_x_min = isempty(x_mins) ? 0 : x_mins[1]
+#println("first_x_min ", first_x_min)
 
 
 
@@ -494,8 +541,8 @@ function find_first_peak(x_maxs, y_maxs, first_x_min)
 end
 
 x_peak_sb, y_peak_sb = find_first_peak(x_maxs, y_maxs, first_x_min)
-println(x_peak_sb)
-println( y_peak_sb)
+#println(x_peak_sb)
+#println( y_peak_sb)
 
 scatter!(p_sg_der2, [x_peak_sb], [y_peak_sb], color="green", markersize=4, label="Stopband peak")
 
@@ -504,6 +551,29 @@ scatter!(p_sg_der2, [x_peak_sb], [y_peak_sb], color="green", markersize=4, label
 
 
 #---------------------------------------------------------------------------
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 """

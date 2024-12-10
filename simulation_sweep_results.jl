@@ -106,7 +106,11 @@ fixed_params = Dict(
     :nodePerCell => 4,                 # Nodes per cell
 
     # Fabrication parameters (fixed)
-    :JosephsonCapacitanceDensity => 45, # Unit value
+
+    #ATTENTION
+    :JosephsonCapacitanceDensity => 45, #ATTENTION 45 IS THE CORRECT Unit value
+    #ATTENTION
+    
     :CgDielectricK => 9.6,             # Dielectric constant
     :tandeltaCgDielectric => 2.1e-3,   # Loss tangent of dielectric
 )
@@ -134,10 +138,13 @@ sim_vars[:wp] = (2 * pi * sim_vars[:fp],)
 
 #PARAMETER SCAN
 
-JJSmallStd = 0.1        #Tra 0.05 e 0.2             # =0 -> perfect fab , 0.1 -> 10% spread
-JJBigStd = 0.1               #Tra 0.05 e 0.2             # =0 -> perfect fab , 0.1 -> 10% spread
+JJSmallStd = 0.05        #Tra 0.05 e 0.2             # =0 -> perfect fab , 0.1 -> 10% spread
+JJBigStd = 0.05               #Tra 0.05 e 0.2             # =0 -> perfect fab , 0.1 -> 10% spread
 
 # Define the parameter arrays directly in the dictionary
+
+# Usually is better to take 10 x dim elements where dim is the number of dimensions 
+
 """
 # Parameter space near the benchmark
 sim_params_space = Dict(
@@ -151,29 +158,45 @@ sim_params_space = Dict(
     :CgDielectricThichness => collect(50:1:140)     
  
 )
+sim_params_space = Dict(
+    :loadingpitch => [3],
+    :nMacrocells => [50],   #20                     
+    :smallJunctionArea =>  collect(0.5:0.25:1.5), # [0.7]                        
+    :alphaSNAIL => collect(0.1:0.05:0.2),  #0.16                  
+    :LloadingCell => collect(1:0.5:2),   #[1.5], #                        
+    :CgloadingCell => collect(0.5:0.5:1.5),  #[1], #                           
+    :criticalCurrentDensity => [0.4], #collect(0.1:0.1:0.9),                
+    :CgDielectricThichness => collect(50:20:130)     
+ 
+)
 
-"""
+
+
+
+
+
 
 # Right parameter space
 
 sim_params_space = Dict(
     :loadingpitch => [3],
     :nMacrocells => [50],               
-    :smallJunctionArea =>  collect(0.5:0.5:5),                       
-    :alphaSNAIL => collect(0.1:0.05:0.25),                   
-    :LloadingCell => collect(1:1.5:4.5),                          
-    :CgloadingCell => collect(1:1.5:4.5),                             
+    :smallJunctionArea =>  collect(2:0.25:5),                       
+    :alphaSNAIL => collect(0.1:0.025:0.25),                   
+    :LloadingCell => collect(1:1.2:6),                          
+    :CgloadingCell => collect(1:1.2:6),                             
     :criticalCurrentDensity => [0.4],                 
     :CgDielectricThichness => collect(10:10:70)     
 )
+"""
 
 sim_params_space = Dict(
     :loadingpitch => [3],
     :nMacrocells => [50],               
-    :smallJunctionArea =>  [2,3,4],                       
-    :alphaSNAIL => collect(0.15:0.5:0.25),                   
-    :LloadingCell => collect(1.5:1.5:4.5),                          
-    :CgloadingCell => collect(1.5:1.5:4.5),                             
+    :smallJunctionArea =>  collect(2:0.5:5),                       
+    :alphaSNAIL => collect(0.1:0.025:0.25),                   
+    :LloadingCell => collect(1.5:1.5:6),                          
+    :CgloadingCell => collect(1.5:1.5:6),                             
     :criticalCurrentDensity => [0.4],                 
     :CgDielectricThichness => collect(10:20:70)     
 )
@@ -240,13 +263,13 @@ function cost(vec) #vector passing
     circuit_temp, circuitdefs_temp = create_circuit(JJSmallStd, JJBigStd, params_temp, fixed_params)
     println("Circuit created")
 
-    _, _, S11, _, S21phase = simulate_low_pump_power(sim_vars, circuit_temp, circuitdefs_temp)
+    S21, _, S11, _, S21phase = simulate_low_pump_power(sim_vars, circuit_temp, circuitdefs_temp)
     println("S parameters calculated")
 
     maxS11value = maxS11val_BandFreq_FixFlux(S11, params_temp, sim_vars)
     println("Maximum value of S11: ", maxS11value)
 
-    alpha_wphalf, alpha_wp, alpha_lin, alpha_stopband, alpha_nonlin  = calculation_metric_lines(S21phase, params_temp, sim_vars)
+    alpha_wphalf, alpha_wp, alpha_lin, alpha_stopband, alpha_nonlin, alpha_freqband  = calculation_metric_lines(S21phase, params_temp, sim_vars)
     println("Angles calculated")
 
     _, x_stopband_peak, x_pump = plot_derivative_low_pump(S21phase, sim_vars, params_temp)
@@ -256,21 +279,25 @@ function cost(vec) #vector passing
     #delta_alpha_wphalf=abs(alpha_wphalf - alpha_lin)
 
     metric_angles_stopband = (abs(alpha_stopband)*2.5)*1e12
-    println("   a. Angle contribute stopband: ", metric_angles_stopband)
+    println("   a. Stopband angle contribution : ", metric_angles_stopband)
 
     metric_stopband_position = 3.5*abs(x_stopband_peak - x_pump)
-    println("   b. Stopband position contribute: ", metric_stopband_position)
+    println("   b. Stopband position contribution: ", metric_stopband_position)
 
     metric_impedance = (20/abs(maxS11value))
-    println("   c. Impedance matching contibute: ", metric_impedance)
+    println("   c. Impedance matching contibution: ", metric_impedance)
 
-    metric = metric_angles_stopband + metric_stopband_position + metric_impedance   
+    metric_freqband = abs(alpha_nonlin - alpha_freqband)*5*1e2
+    println("   d. Frequency band angle contribution: ", metric_freqband)
+
+    metric = metric_angles_stopband + metric_stopband_position + metric_impedance + metric_freqband
     println("Final value: ", metric)
 
-    #p1,_,_,p4 = plot_low_pump_power(S21, S11, S21phase, params_temp, sim_vars)
-    #p=plot(p1,p4,layout=(2,1), size=(600, 700))
-    
-    #display(p)
+    p1,_,_,p4 = plot_low_pump_power(S21, S11, S21phase, params_temp, sim_vars)
+
+    p=plot(p1,p4,layout=(2,1), size=(600, 700))
+
+    display(p)
 
     println("-----------------------------------------------------")
   
@@ -285,15 +312,16 @@ end
 println("-----------------------------------------------------")
 
 n_initial_points = find_n_initial_points(sim_params_space) 
-n_maxiters = 10 #50
-n_num_new_samples = 12 #80
+n_maxiters = 50
+n_num_new_samples = 70
 
 time_estimated, finish_time = simulation_time_estimation(n_initial_points, n_maxiters, n_num_new_samples)
 
 println("Total number of initial points: ", n_initial_points)
 println("Number of max interactions: ", n_maxiters)
 println("Number of samples for every interaction: ", n_num_new_samples)
-println("Total number of point calculated in the simulation: ", n_maxiters*n_num_new_samples)
+n_iter_inside_sim = n_maxiters*n_num_new_samples
+println("Total number of points calculated in the simulation: ", n_iter_inside_sim)
 
 println("SIMULATION TIME ESTIMATED: ", time_estimated)
 
@@ -304,11 +332,11 @@ println("STARTING AT: ", dates_now)
 println("ESTIMATED END AT: ", finish_time)
 println("-----------------------------------------------------")
 
-output = "SIMULATION IN PROGRESS... \n\nTIME ESTIMATED:  $(time_estimated)\n\n\n\nSTARTING AT: $(dates_now)\n\nESTIMATED END AT: $(finish_time)"
+output = "SIMULATION IN PROGRESS...\n-----------------------------------------------------\n\nNumber of initial points: $n_initial_points\nNumber of iteractions: $(n_iter_inside_sim)\n\n -----------------------------------------------------\n
+        TIME ESTIMATED:  $(time_estimated)\n\n-----------------------------------------------------\n\nSTARTING AT: $(dates_now)\n\nESTIMATED END AT: $(finish_time)"
 out_plot = plot([], legend=false, grid=false, framestyle=:none)
 annotate!(out_plot, 0.5, 0.5, text(output, 12))  # Position the text at the center of the plot
 display(out_plot)
-
 
 
 
@@ -325,24 +353,34 @@ println("Upper bounds:", ub)
 # Create n random points
 
 #n_initial_points = 2
-#ini_points = generate_n_initial_random_points(n_initial_points, sim_params_space)
-#println("Initial points: ", ini_points)
-
-
-# Create all the points of the parameter space
-
-initial_points = generate_all_initial_points(sim_params_space)
-save_points_to_file(initial_points, "initial_points.jld2")
+#initial_points = generate_n_initial_random_points(n_initial_points, sim_params_space)
 #println("Initial points: ", initial_points)
 
 #for p in initial_points
 #    println("Single point: ", p)
 #end 
 
+
+
+
+# Create all the points of the parameter space
+
+initial_points = generate_all_initial_points(sim_params_space)
+#save_points_to_file(initial_points, "initial_points.jld2")
+#println("Initial points: ", initial_points)
+
+
+
+# Calculate the value of the metric
+
 initial_values = [cost(p) for p in initial_points]
-save_points_to_file(initial_values, "initial_values.jld2")
+#save_points_to_file(initial_values, "initial_values.jld2")
 #println("Initial values: ", initial_values)
 
+
+
+
+# Loading points from the files
 
 #initial_points = load_points_from_file("initial_points.jld2")
 #println("Initial points: ", initial_points)
@@ -351,9 +389,12 @@ save_points_to_file(initial_values, "initial_values.jld2")
 #println("Initial values: ", initial_values)
 
 
+
+
+# Kriging the points for optimization
+
 my_k_SRBFN = Kriging(initial_points, initial_values, lb, ub)
 #println("my_k_SRBFN: ", my_k_SRBFN)
-
 
 
 
@@ -381,7 +422,8 @@ result = surrogate_optimize(
 
 println("-----------------------------------------------------")
 println("FINISHED AT: ", (Dates.now()))
-println("Complete simulation time: ", round((time() - start_time) / 60), " minutes and ", Int(round((time()-start_time) % 60))," seconds.")
+total_time = simulation_time(start_time)
+println("Complete simulation time: ", total_time)
 
 """
 Balancing these maxiters and num_new_samples is essential for efficient optimization. 

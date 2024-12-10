@@ -94,3 +94,20 @@ function simulation_time_estimation(n_initial_points, n_maxiters, n_num_new_samp
     
     return formatted_estimation, formatted_finish_time
 end
+
+
+function simulation_time(start_time)
+
+    total_time = time() - start_time
+
+    total_seconds = round(Int, total_time)
+    days = div(total_seconds, 86400)
+    hours = div(total_seconds % 86400, 3600)
+    minutes = div(total_seconds % 3600, 60)
+    seconds = total_seconds % 60
+
+    formatted_time = "$(days)d $(hours)h $(minutes)m $(seconds)s"
+    
+    return formatted_time
+
+end
