@@ -82,7 +82,6 @@ function calculation_lines_low_pump_power(outvalsS21PhasephidcSweep, params, sim
 
 
     # fit stopband line
-
     y_stopband = -outvalsS21PhasephidcSweep[wpIndex[1]-10:wpIndex[1]-2, phidcIndex] / params[:N]
     x_stopband = sim_vars[:ws][wpIndex[1]-10:wpIndex[1]-2]
 
@@ -110,8 +109,10 @@ function calculation_lines_low_pump_power(outvalsS21PhasephidcSweep, params, sim
 
     q_nonlin = beta[1]
     m_nonlin = beta[2]
-    println("qnonlin ", q_nonlin)
-    println("mnonlin ", m_nonlin)
+    #println("qnonlin ", q_nonlin)
+    #println("mnonlin ", m_nonlin)
+
+
 
     # fit at the frequency band at wp/2
 
@@ -120,13 +121,13 @@ function calculation_lines_low_pump_power(outvalsS21PhasephidcSweep, params, sim
     
     f_p=x[wpIndex[1]]
     k_p=y[wpIndex[1]]
-    println("f_p ", f_p)
-    println("k_p ", k_p)
+    #println("f_p ", f_p)
+    #println("k_p ", k_p)
 
     f_phalf=x[wphalfIndex[1]]
     k_phalf=y[wphalfIndex[1]]
-    println("f_phalf ", f_phalf)
-    println("k_phalf ", k_phalf)
+    #println("f_phalf ", f_phalf)
+    #println("k_phalf ", k_phalf)
 
 
     fp_band_dx = round((sim_vars[:fp]/2)+1e9, digits=-8)  
@@ -135,8 +136,8 @@ function calculation_lines_low_pump_power(outvalsS21PhasephidcSweep, params, sim
     k_band_sx_index = findall(x -> x == fp_band_sx, sim_vars[:fs])
     fp_band = x[k_band_sx_index[1]:k_band_dx_index[1]]  
     kp_band = y[k_band_sx_index[1]:k_band_dx_index[1]]
-    println("f_band ", fp_band)
-    println("k_band ", kp_band)
+    #println("f_band ", fp_band)
+    #println("k_band ", kp_band)
 
 
     n = length(fp_band)
@@ -146,8 +147,8 @@ function calculation_lines_low_pump_power(outvalsS21PhasephidcSweep, params, sim
 
     q_freqband = beta[1]
     m_freqband = beta[2]
-    println("qfreq ", q_freqband)
-    println("mfreq ", m_freqband)
+    #println("qfreq ", q_freqband)
+    #println("mfreq ", m_freqband)
     
     return m, q, m_p, q_p, m_phalf, q_phalf, m_stopband, q_stopband, m_nonlin, q_nonlin, m_freqband, q_freqband
 
@@ -184,7 +185,7 @@ function plot_derivative_low_pump(S21phase, sim_vars, params)
         xlabel=L"f / GHz",
         ylabel=L"k / rad \cdot cells^{-1}",
         title="Dispersion relation",
-        ylim=(0.0, 1.5),
+        #ylim=(0.0, 1.5),
         legend=true,
         colorbar=true,
         label="",
@@ -226,7 +227,7 @@ function plot_derivative_low_pump(S21phase, sim_vars, params)
 
     #---------------------------------------------------------------------------
 
-    window_size = 11 #27 # Must be odd
+    window_size = 27 #27 # Must be odd
     poly_order = 3
     y_sg = savitzky_golay(y[:,1], window_size, poly_order)    
 
@@ -330,7 +331,7 @@ function plot_derivative_low_pump(S21phase, sim_vars, params)
     #Finding min --> ci interessa il max ma il primo min è piu sensibile
 
     pkindices, properties = findpeaks1d(-y; 
-    height=2,             # Minimum peak height
+    height=3,             # Minimum peak height
     prominence=0.01,        # Minimum prominence of peaks
     width=1.0,             # Minimum width of peaks
     relheight=0.5           # Relative height to determine peak edges
@@ -348,7 +349,7 @@ function plot_derivative_low_pump(S21phase, sim_vars, params)
     # Finding max
 
     pkindices, properties = findpeaks1d(y; 
-    height=-10,             # Minimum peak height
+    height=2,             # Minimum peak height
     prominence=0.01,        # Minimum prominence of peaks
     width=1.0,             # Minimum width of peaks
     relheight=0.5           # Relative height to determine peak edges
@@ -377,7 +378,7 @@ function plot_derivative_low_pump(S21phase, sim_vars, params)
     #println(x_peak_sb)
     #println( y_peak_sb)
 
-    scatter!(p_sg_der2, [x_peak_sb], [y_peak_sb], color="green", markersize=5, label="stopband peak")
+    scatter!(p_sg_der2, [x_peak_sb], [y_peak_sb], color="green", markersize=3.5, label="stopband peak")
 
     x_pump = x[wpIndex][1]
     #println("x_pump", x_pump)
@@ -386,7 +387,7 @@ function plot_derivative_low_pump(S21phase, sim_vars, params)
 
     p=plot(p4, p_sg, p_sg_der, p_sg_der2, layout=(4,1), size=(1200, 1400))
     
-    return p, x_peak_sb, x_pump
+    return p, x_peak_sb, x_pump, p_sg_der2
 
 end
 
@@ -446,7 +447,7 @@ function plot_low_pump_power(outvalsS21phidcSweep, outvalsS11phidcSweep, outvals
         xlabel=L"f / GHz",
         ylabel=L"k / rad \cdot cells^{-1}",
         title="Dispersion relation",
-        ylim=(0.0, 1.5),
+        ylim=(-1, 2),
         legend=true,
         colorbar=true,
         label="",
@@ -463,9 +464,9 @@ function plot_low_pump_power(outvalsS21phidcSweep, outvalsS11phidcSweep, outvals
     #plot!(p4, sim_vars[:ws] / (2 * pi * 1e9), m_p .* sim_vars[:ws] .+ q_p, label="wp line", color=:darkblue)
     #plot!(p4, sim_vars[:ws] / (2 * pi * 1e9), m_nonlin .* sim_vars[:ws] .+ q_nonlin, label="wp line nonlin", color=:orange)
     #plot!(p4, sim_vars[:ws] / (2 * pi * 1e9), m_phalf .* sim_vars[:ws] .+ q_phalf, label="wp/2 line", color=:green)
-    plot!(p4, sim_vars[:ws] / (2 * pi * 1e9), m_nonlin .* (sim_vars[:ws]/(2 * pi * 1e9)) .+ q_nonlin, label="nonlin line", color=:green)
+    #plot!(p4, sim_vars[:ws] / (2 * pi * 1e9), m_nonlin .* (sim_vars[:ws]/(2 * pi * 1e9)) .+ q_nonlin, label="nonlin line", color=:green)
     plot!(p4, sim_vars[:ws] / (2 * pi * 1e9), m_stopband .* (sim_vars[:ws]) .+ q_stopband, label="stopband line", color=:darkred)
-    plot!(p4, sim_vars[:ws] / (2 * pi * 1e9), m_freqband .* (sim_vars[:ws]/(2 * pi * 1e9)) .+ q_freqband, label="freqband line", color=:darkblue)
+    #plot!(p4, sim_vars[:ws] / (2 * pi * 1e9), m_freqband .* (sim_vars[:ws]/(2 * pi * 1e9)) .+ q_freqband, label="freqband line", color=:darkblue)
 
 
     # Plot customization

@@ -120,7 +120,7 @@ sim_vars = Dict(
     :fp =>  13.301 * 1e9,
     :Ip => 0.00001e-6,
     :IpGain => 0.25e-6,
-    :IpSweep => (0:0.2:1)*1e-6, #(0.1:0.1:0.3)*1e-6, # #0.8*1e-6
+    :IpSweep => (0:0.2:2.5)*1e-6, #(0.1:0.1:0.3)*1e-6, # #0.8*1e-6
     :phidcSweep => (0:0.01:0.5),
     :Npumpharmonics => (8,),
     :Nmodulationharmonics => (4,),
@@ -185,7 +185,7 @@ optimal_params = Dict(:smallJunctionArea => 0.7,
                     :CgloadingCell => 1, 
                     :criticalCurrentDensity => 0.4, 
                     :phidc => 0.38, 
-                    :nMacrocells => 50, 
+                    :nMacrocells => 30, 
                     :LloadingCell => 1.5,
                     :loadingpitch => 3.0)
                     
@@ -193,21 +193,23 @@ optimal_params = Dict(:smallJunctionArea => 0.7,
 optimal_params = add_parameters(optimal_params)
 
 
-#optimal_params=Dict(:CgDensity => 1.2635933809032367e-15, :smallJunctionArea => 2.1394323878236645, :CgDielectricThichness => 67.26720896499296, :alphaSNAIL => 0.15, :CgloadingCell => 1.5456783925252877, :criticalCurrentDensity => 0.4, :phidc => 0.36, :nMacrocells => 50.0, :LloadingCell => 1.5250587114918863, :N => 150.0, :CgAreaUNLoaded => 200.0, :loadingpitch => 3.0)
+optimal_params=Dict(:CgDensity => 1.2142628571428568e-15, :smallJunctionArea => 2.0, :CgDielectricThichness => 70.0, :alphaSNAIL => 0.25, :CgloadingCell => 2.0, :criticalCurrentDensity => 0.4, :phidc => 0.39, :nMacrocells =>225.0, :LloadingCell => 1.0, :N => 450.0, :CgAreaUNLoaded => 310.0, :loadingpitch => 2.0)
 #possible benchmark
-optimal_params = Dict(:CgDensity => 1.216548036096446e-15, :smallJunctionArea => 2.039918401851307, :CgDielectricThichness => 69.86851112984859, :alphaSNAIL => 0.15241400139422023, :CgloadingCell => 1.503267171440983, :criticalCurrentDensity => 0.4, :phidc => 0.36, :nMacrocells => 50.0, :LloadingCell => 1.5032002776845013, :N => 150.0, :CgAreaUNLoaded => 200.0, :loadingpitch => 3.0)
-optimal_params=optimal_params
+#optimal_params = Dict(:CgDensity => 1.216548036096446e-15, :smallJunctionArea => 2.039918401851307, :CgDielectricThichness => 69.86851112984859, :alphaSNAIL => 0.15241400139422023, :CgloadingCell => 1.503267171440983, :criticalCurrentDensity => 0.4, :phidc => 0.36, :nMacrocells => 50.0, :LloadingCell => 1.5032002776845013, :N => 150.0, :CgAreaUNLoaded => 200.0, :loadingpitch => 3.0)
+
 println("Optimal Parameters: $optimal_params")
 #println("Optimal Metric: $optimal_metric")
 
-
+open("optimal_parameters.txt", "w") do file
+    write(file, string(optimal_params))
+end
 
 
 circuit_temp, circuitdefs_temp = create_circuit(JJSmallStd, JJBigStd, optimal_params, fixed_params)
 
-#S21, _, S11, _, S21phase = simulate_low_pump_power(sim_vars, circuit_temp, circuitdefs_temp)
+S21, _, S11, _, S21phase = simulate_low_pump_power(sim_vars, circuit_temp, circuitdefs_temp)
 
-#p1, _, _, _ = plot_low_pump_power(S21, S11, S21phase, optimal_params, sim_vars)
+p1, p2, _, _ = plot_low_pump_power(S21, S11, S21phase, optimal_params, sim_vars)
 
 
 
@@ -490,6 +492,8 @@ min_y, index = findmin(y[id_lb_range2:id_ub_range2])
 min_x = x[id_lb_range2:id_ub_range2][index]
 #scatter!(p_sg_der2, [min_x], [min_y], label="Min")
 """
+
+"""
 #Finding min --> ci interessa il max ma il primo min è piu sensibile
 
 pkindices, properties = findpeaks1d(-y; 
@@ -548,35 +552,10 @@ scatter!(p_sg_der2, [x_peak_sb], [y_peak_sb], color="green", markersize=4, label
 
 
 
-
-
 #---------------------------------------------------------------------------
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-"""
 window_size = 11 # Must be odd
 poly_order = 5
 
@@ -639,11 +618,13 @@ scatter!(p_sg_der2, [e[1] for e in extrema], [e[2] for e in extrema], label="Ext
 
 #----------------------------------------------------------------------------
 
-p=plot(p4, p_sg, p_sg_der, p_sg_der2, layout=(4,1), size=(1200, 1400))
+p=plot(p4, p1, p2, p_sg_der2, layout=(4,1), size=(1200, 1400))
 display(p)
 
 #maxS11 = maxS11val_BandFreq_FixFlux(S11, optimal_params, sim_vars)
 #println("Maximum S11: ", maxS11)
 
-#p_temp = simulate_and_plot(optimal_params, sim_vars, fixed_params, circuit_temp, circuitdefs_temp)
+p_temp = simulate_and_plot(optimal_params, sim_vars, fixed_params, circuit_temp, circuitdefs_temp)
 #display(p_temp)
+
+

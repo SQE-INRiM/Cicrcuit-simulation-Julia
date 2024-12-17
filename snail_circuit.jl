@@ -1,6 +1,6 @@
 #-------------------------------------CREATION OF SNAIL CIRCUIT-------------------------------------------
 
-function create_circuit(JJSmallStd, JJBigStd, params_temp, fixed_params, verbose::Bool=false)
+function create_circuit(JJSmallStd, JJBigStd, params_temp, fixed_params; verbose::Bool=false)
     
     #Circuit definitions----------------------------------------------------
 

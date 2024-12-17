@@ -11,7 +11,7 @@ function add_parameters(params_temp)
     #Adding important parameters
     params_temp[:N] = params_temp[:nMacrocells]*params_temp[:loadingpitch] 
     params_temp[:CgDensity] = (fixed_params[:CgDielectricK] * 8.854e-12) / (1e12 * params_temp[:CgDielectricThichness] * 1e-9)
-    params_temp[:CgAreaUNLoaded] = 200 #150 + 20 * (params_temp[:smallJunctionArea] / params_temp[:alphaSNAIL])
+    params_temp[:CgAreaUNLoaded] = 150 + 20 * (params_temp[:smallJunctionArea] / params_temp[:alphaSNAIL])
     params_temp[:phidc] = find_flux_from_alpha(params_temp) 
 
     return params_temp
@@ -45,16 +45,17 @@ function generate_all_initial_points(params_space)
     # Extract the parameter value lists from the dictionary
     value_lists = values(params_space)
     
-    # Initialize an empty array to store the generated points
-    points = []
+    # Initialize an empty set to store the generated points (sets do not allow duplicates)
+    points_set = Set{Tuple{Float64, Vararg{Float64}}}()
     
     # Generate all combinations using nested for loops (generalized)
     for values in Iterators.product(value_lists...)
-        # Convert each combination into a tuple of floats
-        push!(points, tuple(map(float, values)...))
+        # Convert each combination into a tuple of floats and add it to the set
+        push!(points_set, tuple(map(float, values)...))
     end
 
-    return points
+    # Convert the set back to a list (array)
+    return collect(points_set)
 end
 
 function save_points_to_file(points, filename)
@@ -71,7 +72,7 @@ end
 
 function simulation_time_estimation(n_initial_points, n_maxiters, n_num_new_samples)
     # Define the time per point in seconds
-    time_per_point = 7.0  # seconds
+    time_per_point = 5.0 # seconds
     
     # Calculate total time for the simulation
     total_points = n_initial_points + n_maxiters * n_num_new_samples

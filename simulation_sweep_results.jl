@@ -158,9 +158,11 @@ sim_params_space = Dict(
     :CgDielectricThichness => collect(50:1:140)     
  
 )
+
+
 sim_params_space = Dict(
-    :loadingpitch => [3],
-    :nMacrocells => [50],   #20                     
+    :loadingpitch => [2],
+    :nMacrocells => [225],   #20                     
     :smallJunctionArea =>  collect(0.5:0.25:1.5), # [0.7]                        
     :alphaSNAIL => collect(0.1:0.05:0.2),  #0.16                  
     :LloadingCell => collect(1:0.5:2),   #[1.5], #                        
@@ -169,11 +171,6 @@ sim_params_space = Dict(
     :CgDielectricThichness => collect(50:20:130)     
  
 )
-
-
-
-
-
 
 
 # Right parameter space
@@ -188,33 +185,44 @@ sim_params_space = Dict(
     :criticalCurrentDensity => [0.4],                 
     :CgDielectricThichness => collect(10:10:70)     
 )
-"""
+
 
 sim_params_space = Dict(
     :loadingpitch => [3],
-    :nMacrocells => [50],               
+    :nMacrocells => [25],               
     :smallJunctionArea =>  collect(2:0.5:5),                       
-    :alphaSNAIL => collect(0.1:0.025:0.25),                   
-    :LloadingCell => collect(1.5:1.5:6),                          
-    :CgloadingCell => collect(1.5:1.5:6),                             
-    :criticalCurrentDensity => [0.4],                 
-    :CgDielectricThichness => collect(10:20:70)     
+    :alphaSNAIL => collect(0.1:0.05:0.25),                   
+    :LloadingCell => collect(1:1.2:6),                          
+    :CgloadingCell => collect(1:1.25:6),                             
+    :criticalCurrentDensity => [0.4],               
+    :CgDielectricThichness => collect(10:15:70)      
+)
+"""
+sim_params_space = Dict(
+    :loadingpitch => [2],
+    :nMacrocells => [40],               
+    :smallJunctionArea =>  collect(2:0.5:5),                       
+    :alphaSNAIL => collect(0.1:0.05:0.25),                   
+    :LloadingCell => collect(1:1.2:6),                          
+    :CgloadingCell => collect(1:1.2:6),                             
+    :criticalCurrentDensity => [0.4],               
+    :CgDielectricThichness => collect(10:15:70)      
 )
 
 """
 # test par space
 sim_params_space = Dict(
     :loadingpitch => [3],
-    :nMacrocells => [50],               
+    :nMacrocells => [20],               
     :smallJunctionArea =>  [2,3],                       
-    :alphaSNAIL => [0.2],                   
-    :LloadingCell => [3],                          
-    :CgloadingCell => [3],                             
+    :alphaSNAIL => [0.2,0.3],                   
+    :LloadingCell => [2,3],                          
+    :CgloadingCell => [3,4],                             
     :criticalCurrentDensity => [0.4],                 
-    :CgDielectricThichness => [40]     
+    :CgDielectricThichness => [40,50]     
 )
-
 """
+
 
 
 #-----------------------------------------------------------------------------------
@@ -272,38 +280,38 @@ function cost(vec) #vector passing
     alpha_wphalf, alpha_wp, alpha_lin, alpha_stopband, alpha_nonlin, alpha_freqband  = calculation_metric_lines(S21phase, params_temp, sim_vars)
     println("Angles calculated")
 
-    _, x_stopband_peak, x_pump = plot_derivative_low_pump(S21phase, sim_vars, params_temp)
+    _, x_stopband_peak, x_pump, p_der2 = plot_derivative_low_pump(S21phase, sim_vars, params_temp)
     println("Peak calculated")
+
+    global plot_index
+    plot_index+=1
+    println("Plot number: ", plot_index)
 
     #delta_alpha_wp=abs(alpha_wp - alpha_lin)
     #delta_alpha_wphalf=abs(alpha_wphalf - alpha_lin)
 
-    metric_angles_stopband = (abs(alpha_stopband)*2.5)*1e12
+    metric_angles_stopband = (abs(alpha_stopband)*10)*1e12
     println("   a. Stopband angle contribution : ", metric_angles_stopband)
 
-    metric_stopband_position = 3.5*abs(x_stopband_peak - x_pump)
+    metric_stopband_position = 3*abs(x_stopband_peak - x_pump)
     println("   b. Stopband position contribution: ", metric_stopband_position)
 
-    metric_impedance = (20/abs(maxS11value))
+    metric_impedance = (1e4/(abs(maxS11value)))
     println("   c. Impedance matching contibution: ", metric_impedance)
 
-    metric_freqband = abs(alpha_nonlin - alpha_freqband)*5*1e2
+    metric_freqband = 5e2*(abs(alpha_nonlin - alpha_freqband))
     println("   d. Frequency band angle contribution: ", metric_freqband)
 
     metric = metric_angles_stopband + metric_stopband_position + metric_impedance + metric_freqband
     println("Final value: ", metric)
 
-    p1,_,_,p4 = plot_low_pump_power(S21, S11, S21phase, params_temp, sim_vars)
-
-    p=plot(p1,p4,layout=(2,1), size=(600, 700))
-
-    display(p)
-
+    #p1,p2,_,p4 = plot_low_pump_power(S21, S11, S21phase, params_temp, sim_vars)
+    #p=plot(p1,p2,p4,p_der2, layout=(2,2), size=(1200, 900))
+    #display(p)
+   
     println("-----------------------------------------------------")
   
     return metric
-    #p_temp = simulate_and_plot(params_temp, sim_vars, fixed_params, circuit_temp, circuitdefs_temp)
-    #display(p_temp)
 
 end
 
@@ -311,9 +319,9 @@ end
 
 println("-----------------------------------------------------")
 
-n_initial_points = find_n_initial_points(sim_params_space) 
+n_initial_points = find_n_initial_points(sim_params_space)  #OCIO IL x2
 n_maxiters = 50
-n_num_new_samples = 70
+n_num_new_samples = 60
 
 time_estimated, finish_time = simulation_time_estimation(n_initial_points, n_maxiters, n_num_new_samples)
 
@@ -338,22 +346,27 @@ out_plot = plot([], legend=false, grid=false, framestyle=:none)
 annotate!(out_plot, 0.5, 0.5, text(output, 12))  # Position the text at the center of the plot
 display(out_plot)
 
-
+#bounds=[(1.0, 6.0), (2, 3), (2.0, 5.0), (0.4, 0.4), (25, 40), (1.0, 6.0), (10, 70), (0.1, 0.25)]
 
 #Return upper and lower boundaries
 bounds = [extrema(v) for v in values(sim_params_space)]
+
+global plot_index = 0
+
 println("Bounds: ", bounds)
 
 lb = [b[1] for b in bounds]
 ub = [b[2] for b in bounds]
 println("Lower bounds:", lb)
 println("Upper bounds:", ub)
+lb = Float64.(lb)
+ub = Float64.(ub)
 
 
 # Create n random points
 
-#n_initial_points = 2
-#initial_points = generate_n_initial_random_points(n_initial_points, sim_params_space)
+#n_initial_points = 5
+#initial_points = generate_n_initial_random_points(n_initial_points, sim_params_space_lp2)
 #println("Initial points: ", initial_points)
 
 #for p in initial_points
@@ -361,12 +374,13 @@ println("Upper bounds:", ub)
 #end 
 
 
-
-
 # Create all the points of the parameter space
 
 initial_points = generate_all_initial_points(sim_params_space)
-#save_points_to_file(initial_points, "initial_points.jld2")
+#initial_points2 = generate_all_initial_points(sim_params_space_lp2)
+#initial_points = vcat(initial_points, initial_points2)
+
+save_points_to_file(initial_points, "initial_points_16_12.jld2")
 #println("Initial points: ", initial_points)
 
 
@@ -374,7 +388,7 @@ initial_points = generate_all_initial_points(sim_params_space)
 # Calculate the value of the metric
 
 initial_values = [cost(p) for p in initial_points]
-#save_points_to_file(initial_values, "initial_values.jld2")
+save_points_to_file(initial_values, "initial_values_16_12.jld2")
 #println("Initial values: ", initial_values)
 
 
@@ -454,11 +468,15 @@ println("------------------SIMULATION RESULTS-----------------")
 println("-----------------------------------------------------")
 
 
-cost(optimal_vec)
+#cost(optimal_vec)
 
 println("Optimal Parameters: $optimal_params")
 println("Optimal Metric: $optimal_metric")
 #println("Cg DIELECTRIC THICKNESS: ", optimal_params[:CgDielectricThichness])
+
+open("optimal_parameters.txt", "w") do file
+    write(file, string(optimal_params))
+end
 
 circuit_temp, circuitdefs_temp = create_circuit(JJSmallStd, JJBigStd, optimal_params, fixed_params)
 
@@ -477,7 +495,14 @@ display(p)
 p, _, _ = plot_derivative_low_pump(S21phase, sim_vars, optimal_params)
 display(p)
 
-p_temp = simulate_and_plot(optimal_params, sim_vars, fixed_params, circuit_temp, circuitdefs_temp)
+
+
+
+S21, _, S11, _ = simulate_at_fixed_flux(optimal_params, sim_vars, circuit_temp, circuitdefs_temp)
+p1p, p2p, p5 = plot_at_fixed_flux(S21, S11, sim_vars)
+p_temp = plot(p1p,p2p,p5,layout=(3,1), size=(600, 700))
+
+#p_temp = simulate_and_plot(optimal_params, sim_vars, fixed_params, circuit_temp, circuitdefs_temp)
 
 println("Report completed")
 display(p_temp)
